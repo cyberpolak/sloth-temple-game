@@ -158,6 +158,7 @@ let phase='intro';
 let tourIndex=0;
 let introT=0;
 let somnulEndormi=false;
+let somnulAffaibli=false;
 
 const MEMBRES=[
   { id:'polak',   nom:'POLAK',   role:'CHANT / GUITARE', pv:100, pvMax:100, dort:false,
@@ -727,11 +728,11 @@ const dodo=(ms)=>new Promise(r=>setTimeout(r,ms));
 function vivants(){ return MEMBRES.filter(m=>m.pv>0); }
 function ajouterRiff(n){ riff=Math.min(100,riff+n); }
 
-async function attaqueMembre(m){
+async function attaqueMembre(m, actionId){
   panneau.style.display='none';
   phase='anim';
 
-  if(m.id==='polak'){
+  if(actionId==='fuzz'){
     log("POLAK — GUITARE FUZZ ! Le power chord de Mi fait vibrer les colonnes.");
     sonGuitareFuzz(); animAttaqueMusicien(m); flasher('#ffaa5a',0.35);
     await dodo(900);
@@ -741,7 +742,22 @@ async function attaqueMembre(m){
     animSomnulTouche(); sonSomnul('grogne');
     ajouterRiff(25);
   }
-  else if(m.id==='steve'){
+  else if(actionId==='scream'){
+    log("POLAK — DOOM SCREAM ! Un cri venu des profondeurs du cosmos.");
+    sonGuitareFuzz(); animAttaqueMusicien(m,1.8); flasher('#ff3a3a',0.5);
+    camShake=0.5;
+    await dodo(1200);
+    const deg=30+Math.floor(Math.random()*11);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#ff5a5a');
+    animSomnulTouche(); sonSomnul('grogne');
+    somnulAffaibli=true;
+    await dodo(600);
+    log("Somnul est ébranlé... ses attaques seront réduites ce tour !");
+    await dodo(1000);
+    ajouterRiff(15);
+  }
+  else if(actionId==='rifflord'){
     log("STEVE — ATTAQUE RIFFLORD ! Le riff qui couche les empires.");
     sonRifflord(); animAttaqueMusicien(m,1.5); flasher('#ff8a3a',0.45);
     await dodo(1100);
@@ -752,7 +768,20 @@ async function attaqueMembre(m){
     camShake=0.4;
     ajouterRiff(30);
   }
-  else if(m.id==='clem'){
+  else if(actionId==='solo'){
+    log("STEVE — SOLO ! Les doigts volent sur les frettes...");
+    sonRifflord(); animAttaqueMusicien(m,1.6); flasher('#ffcc3a',0.5);
+    await dodo(1200);
+    let deg=20+Math.floor(Math.random()*16);
+    const critique=Math.random()<0.5;
+    if(critique){ deg*=2; degatsFlottants(somnul,'CRITIQUE !','#ffcc3a'); await dodo(400); }
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#ffdd6a');
+    animSomnulTouche(); sonSomnul('grogne');
+    camShake=critique?0.7:0.3;
+    ajouterRiff(20);
+  }
+  else if(actionId==='kalimba'){
     log("CLEM — KALIMBA ! La berceuse rituelle apaise le groupe... et le dieu.");
     sonKalimba(); animAttaqueMusicien(m); flasher('#8ad8ff',0.3);
     await dodo(1100);
@@ -776,28 +805,64 @@ async function attaqueMembre(m){
       await dodo(1400);
     }
   }
-  else if(m.id==='quentin'){
-    if(riff>=100){
-      log("QUENTIN — BASS FUZZ !!! L'ULTI. Le drop d'octave qui rendort les dieux.");
-      sonBassFuzz(); animAttaqueMusicien(m,2.2);
-      camShake=0.7;
-      flasher('#ffd84a',0.7);
-      await dodo(1800);
-      const deg=65+Math.floor(Math.random()*16);
-      somnulPV=Math.max(0,somnulPV-deg);
-      degatsFlottants(somnul,'-'+deg+' !!','#ffd84a');
-      animSomnulTouche(); sonSomnul('grogne');
-      riff=0;
-      MEMBRES.forEach(x=>{ if(x.dort){ x.dort=false; degatsFlottants(x.mesh,'RÉVEIL','#ffd84a'); } });
-    } else {
-      log("QUENTIN tient le groove... la ligne de basse charge le RIFF (+30).");
-      sonTambour(); animAttaqueMusicien(m,0.9);
-      await dodo(900);
-      ajouterRiff(30);
-      const deg=6+Math.floor(Math.random()*5);
-      somnulPV=Math.max(0,somnulPV-deg);
-      degatsFlottants(somnul,'-'+deg,'#cfe8cf');
-    }
+  else if(actionId==='tome'){
+    log("CLEM — TOME BASSE ! Un coup sourd qui fait trembler le sol.");
+    sonTambour(); animAttaqueMusicien(m,1.5); flasher('#aa6aff',0.4);
+    camShake=0.5;
+    await dodo(1100);
+    const deg=15+Math.floor(Math.random()*6);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#cc8aff');
+    animSomnulTouche(); sonSomnul('grogne');
+    await dodo(500);
+    MEMBRES.forEach(x=>{
+      if(x.pv>0){
+        x.pv=Math.min(x.pvMax,x.pv+20);
+        degatsFlottants(x.mesh,'+20','#7aff9a');
+      }
+    });
+    log("Les vibrations du tome soignent le groupe de 20 PV !");
+    await dodo(1000);
+    ajouterRiff(15);
+  }
+  else if(actionId==='bassfuzz'){
+    log("QUENTIN — BASS FUZZ !!! L'ULTI. Le drop d'octave qui rendort les dieux.");
+    sonBassFuzz(); animAttaqueMusicien(m,2.2);
+    camShake=0.7;
+    flasher('#ffd84a',0.7);
+    await dodo(1800);
+    const deg=65+Math.floor(Math.random()*16);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg+' !!','#ffd84a');
+    animSomnulTouche(); sonSomnul('grogne');
+    riff=0;
+    MEMBRES.forEach(x=>{ if(x.dort){ x.dort=false; degatsFlottants(x.mesh,'RÉVEIL','#ffd84a'); } });
+  }
+  else if(actionId==='groove'){
+    log("QUENTIN tient le groove... la ligne de basse charge le RIFF (+30).");
+    sonTambour(); animAttaqueMusicien(m,0.9);
+    await dodo(900);
+    ajouterRiff(30);
+    const deg=6+Math.floor(Math.random()*5);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#cfe8cf');
+  }
+  else if(actionId==='c2'){
+    log("QUENTIN — C2 ! La note la plus basse de l'univers connu.");
+    sonBassFuzz(); animAttaqueMusicien(m,2.5);
+    camShake=0.8;
+    flasher('#3a3aff',0.6);
+    await dodo(2000);
+    const deg=40+Math.floor(Math.random()*16);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#8888ff');
+    animSomnulTouche(); sonSomnul('grogne');
+    somnulEndormi=true;
+    yeux.forEach(o=>o.material.emissiveIntensity=0.2);
+    await dodo(600);
+    log("Somnul est paralysé par la fréquence... il passe son tour !");
+    await dodo(1200);
+    ajouterRiff(10);
   }
 
   majUI();
@@ -830,7 +895,8 @@ async function tourSomnul(){
     animSomnulAttaque('griffe'); sonSomnul('grogne');
     await dodo(1300);
     const cible=cibles[Math.floor(Math.random()*cibles.length)];
-    const deg=24+Math.floor(Math.random()*12);
+  const deg=somnulAffaibli ? 10+Math.floor(Math.random()*6) : 24+Math.floor(Math.random()*12);
+somnulAffaibli=false;
     cible.pv=Math.max(0,cible.pv-deg);
     degatsFlottants(cible.mesh,'-'+deg,'#ff7a5a');
     camShake=0.5; flasher('#3aff7a',0.25);
@@ -922,19 +988,40 @@ function tourSuivant(){
 function montrerActions(m){
   montrerMenu();
   actionsEl.innerHTML='';
-  const btn=document.createElement('button');
-  btn.className='btn-action'+(m.id==='quentin'&&riff>=100?' ulti':'');
+
+  const actions = getActions(m);
+  actions.forEach(action => {
+    const btn=document.createElement('button');
+    btn.className='btn-action'+(action.ulti?' ulti':'');
+    btn.innerHTML=`${action.nom} <small>${action.desc}</small>`;
+    btn.onclick=()=>{ if(phase==='menu') attaqueMembre(m, action.id); };
+    actionsEl.appendChild(btn);
+  });
+}
+
+function getActions(m){
+  if(m.id==='polak') return [
+    { id:'fuzz', nom:'GUITARE FUZZ', desc:'gros dégâts' },
+    { id:'scream', nom:'DOOM SCREAM', desc:'dégâts lourds + affaiblit Somnul 1 tour' },
+  ];
+  if(m.id==='steve') return [
+    { id:'rifflord', nom:'ATTAQUE RIFFLORD', desc:'très gros dégâts + charge le RIFF' },
+    { id:'solo', nom:'SOLO', desc:'50% de chance de critique x2' },
+  ];
+  if(m.id==='clem') return [
+    { id:'kalimba', nom:'KALIMBA', desc:'soigne + peut endormir Somnul' },
+    { id:'tome', nom:'TOME BASSE', desc:'dégâts lourds + soigne le groupe' },
+  ];
   if(m.id==='quentin'){
-    if(riff>=100){
-      btn.innerHTML=`🤘 BASS FUZZ <small>ULTI — dégâts massifs + réveille le groupe</small>`;
-    } else {
-      btn.innerHTML=`TENIR LE GROOVE <small>+30 RIFF, petits dégâts (ulti à ${riff}%)</small>`;
-    }
-  } else {
-    btn.innerHTML=`${m.attaque} <small>${m.desc}</small>`;
+    if(riff>=100) return [
+      { id:'bassfuzz', nom:'🤘 BASS FUZZ', desc:'ULTI — dégâts massifs + réveille le groupe', ulti:true },
+      { id:'c2', nom:'C2', desc:'note abyssale — dégâts massifs + stunlock Somnul' },
+    ];
+    return [
+      { id:'groove', nom:'TENIR LE GROOVE', desc:`+30 RIFF, petits dégâts (ulti à ${riff}%)` },
+      { id:'c2', nom:'C2', desc:'note abyssale — dégâts massifs + stunlock Somnul' },
+    ];
   }
-  btn.onclick=()=>{ if(phase==='menu') attaqueMembre(m); };
-  actionsEl.appendChild(btn);
 }
 
 // ---------- Fins ----------
