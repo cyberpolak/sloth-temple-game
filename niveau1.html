@@ -177,9 +177,10 @@ const renderer=new THREE.WebGLRenderer({ canvas, antialias:false });
 renderer.setSize(RES_W,RES_H,false); renderer.setPixelRatio(1);
 
 const scene=new THREE.Scene();
-const FOG_COL=0x07120a;
-scene.background=new THREE.Color(FOG_COL);
-scene.fog=new THREE.Fog(FOG_COL,8,60);
+const FOG_COL=0x000510;
+const loader=new THREE.TextureLoader();
+loader.load('fondespace.jpeg', tex=>{ scene.background=tex; });
+scene.fog=new THREE.Fog(FOG_COL,20,80);
 
 const camera=new THREE.PerspectiveCamera(58,RES_W/RES_H,0.1,90);
 
@@ -228,60 +229,38 @@ const texFourrure=makeTex((g,s)=>{
   }
 });
 
-scene.add(new THREE.HemisphereLight(0x3a5a44,0x0a140c,1.1));
-const lumScene=new THREE.PointLight(0x9fd8a8,1.6,50,1.2);
+scene.add(new THREE.HemisphereLight(0x1a1a4a,0x000510,0.8));
+const lumScene=new THREE.PointLight(0x8888ff,1.4,60,1.2);
 lumScene.position.set(0,10,8); scene.add(lumScene);
-const lumFace=new THREE.DirectionalLight(0x8aa890,0.5);
+const lumFace=new THREE.DirectionalLight(0xaaaaff,0.4);
 lumFace.position.set(4,12,20); scene.add(lumFace);
 
-const sol=new THREE.Mesh(new THREE.PlaneGeometry(70,70),
-  ps1ify(new THREE.MeshLambertMaterial({ map:texDalle })));
-sol.rotation.x=-Math.PI/2; scene.add(sol);
+// Plateforme cosmique
+const matPlateforme=ps1ify(new THREE.MeshLambertMaterial({ color:0x1a1a2e }));
+const plateforme=new THREE.Mesh(new THREE.CylinderGeometry(14,12,1.2,16),matPlateforme);
+plateforme.position.y=-0.6; scene.add(plateforme);
+const bordure=new THREE.Mesh(new THREE.TorusGeometry(14,0.4,8,24),
+  ps1ify(new THREE.MeshLambertMaterial({ color:0x3a3a6a, emissive:0x2a2a5a, emissiveIntensity:0.8 })));
+bordure.rotation.x=Math.PI/2; bordure.position.y=0; scene.add(bordure);
 
-const matPierre=ps1ify(new THREE.MeshLambertMaterial({ map:texPierre }));
-for(let a=0;a<Math.PI*2;a+=Math.PI/8){
-  const px=Math.cos(a)*24, pz=Math.sin(a)*24;
-  const col=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.85,10,6),matPierre);
-  col.position.set(px,5,pz); scene.add(col);
+// Fissures lumineuses sur la plateforme
+const matFissure=ps1ify(new THREE.MeshLambertMaterial({ color:0x4444aa, emissive:0x3333aa, emissiveIntensity:1.2 }));
+for(let i=0;i<6;i++){
+  const a=i/6*Math.PI*2;
+  const fissure=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.05,6+Math.random()*4),matFissure);
+  fissure.position.set(Math.cos(a)*4,0,Math.sin(a)*4);
+  fissure.rotation.y=a; scene.add(fissure);
 }
 
-// murs du temple au fond et plafond suggéré (architecture fermée)
-const mur=new THREE.Mesh(new THREE.BoxGeometry(50,14,1.5),matPierre);
-mur.position.set(0,7,-22); scene.add(mur);
-[-1,1].forEach(s=>{
-  const murCote=new THREE.Mesh(new THREE.BoxGeometry(1.5,14,46),matPierre);
-  murCote.position.set(s*22,7,0); scene.add(murCote);
-});
-
-// ----- BRASEROS le long des côtés -----
-const flammes=[];
-function makeBrasero(x,z){
-  const g=new THREE.Group();
-  const pied=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.25,1.5,6),matCol(0x2a2420));
-  pied.position.y=0.75; g.add(pied);
-  const coupe=new THREE.Mesh(new THREE.CylinderGeometry(0.65,0.35,0.45,8),matCol(0x3a3028));
-  coupe.position.y=1.65; g.add(coupe);
-  // flamme : cônes émissifs imbriqués
-  const fl1=new THREE.Mesh(new THREE.ConeGeometry(0.42,1.1,6),
-    ps1ify(new THREE.MeshLambertMaterial({ color:0xff8a2a, emissive:0xff6a1a, emissiveIntensity:1.4 })));
-  fl1.position.y=2.35; g.add(fl1);
-  const fl2=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.7,5),
-    ps1ify(new THREE.MeshLambertMaterial({ color:0xffd86a, emissive:0xffc84a, emissiveIntensity:1.8 })));
-  fl2.position.y=2.5; g.add(fl2);
-  const lum=new THREE.PointLight(0xff9a3a,1.6,16,1.5);
-  lum.position.y=2.5; g.add(lum);
-  g.position.set(x,0,z);
-  scene.add(g);
-  flammes.push({fl1,fl2,lum,seed:Math.random()*10});
+// Étoiles
+const etoilesGeo=new THREE.BufferGeometry();
+const etoilesPos=[];
+for(let i=0;i<2000;i++){
+  etoilesPos.push((Math.random()-0.5)*400,(Math.random()-0.5)*400,(Math.random()-0.5)*400);
 }
-// deux rangées de braseros encadrant l'arène
-[-14,-7,0,7,14].forEach(z=>{
-  makeBrasero(-13, z-4);
-  makeBrasero( 13, z-4);
-});
-// deux braseros qui encadrent Somnul
-makeBrasero(-6,-14);
-makeBrasero( 6,-14);
+etoilesGeo.setAttribute('position',new THREE.Float32BufferAttribute(etoilesPos,3));
+const etoilesMat=new THREE.PointsMaterial({ color:0xffffff, size:0.4, sizeAttenuation:true });
+scene.add(new THREE.Points(etoilesGeo,etoilesMat));
 
 const texBrume=makeTex((g,s)=>{
   const grad=g.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
@@ -297,6 +276,21 @@ for(let i=0;i<16;i++){
   sp.userData.va=Math.random()*10;
   scene.add(sp); brumes.push(sp);
 }
+const texNebuleuse=makeTex((g,s)=>{
+  const grad=g.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+  grad.addColorStop(0,'rgba(80,60,180,0.4)'); grad.addColorStop(1,'rgba(80,60,180,0)');
+  g.fillStyle=grad; g.fillRect(0,0,s,s);
+},32);
+for(let i=0;i<12;i++){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:texNebuleuse, transparent:true, opacity:0.3, depthWrite:false }));
+  const r=20+Math.random()*40, a=Math.random()*Math.PI*2;
+  sp.position.set(Math.cos(a)*r,(Math.random()-0.5)*20,Math.sin(a)*r-10);
+  sp.scale.set(20+Math.random()*20,12,1);
+  sp.userData.va=Math.random()*10;
+  scene.add(sp); brumes.push(sp);
+}
+
+
 
 // ============================================================
 //  SOMNUL
@@ -360,7 +354,7 @@ const brasSG=brasSomnul(-1), brasSD=brasSomnul(1);
 });
 const lumSomnul=new THREE.PointLight(0x4aff8a,1.8,30,1.4);
 lumSomnul.position.set(0,9,3); somnul.add(lumSomnul);
-
+somnul.scale.set(1.8,1.8,1.8);
 somnul.position.set(0,-16,-10);
 scene.add(somnul);
 
@@ -430,6 +424,30 @@ function makeGuitare(couleur, longueurManche=0.85){
   tt.position.y=0.25+longueurManche+0.07; g.add(tt);
   return g;
 }
+function makeAmplMarshall(){
+  const g=new THREE.Group();
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.5),matCol(0x111111));
+  cab.position.y=0.55; g.add(cab);
+  const grille=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.7,0.05),matCol(0x222222));
+  grille.position.set(0,0.45,0.28); g.add(grille);
+  const logo=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.08,0.05),matCol(0xffdd00));
+  logo.position.set(0,0.95,0.28); g.add(logo);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.35,0.4),matCol(0x111111));
+  head.position.y=1.28; g.add(head);
+  return g;
+}
+function makeAmplOrange(){
+  const g=new THREE.Group();
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.5),matCol(0xcc4400));
+  cab.position.y=0.55; g.add(cab);
+  const grille=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.7,0.05),matCol(0x882200));
+  grille.position.set(0,0.45,0.28); g.add(grille);
+  const logo=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.08,0.05),matCol(0xffffff));
+  logo.position.set(0,0.95,0.28); g.add(logo);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.35,0.4),matCol(0xcc4400));
+  head.position.y=1.28; g.add(head);
+  return g;
+}
 function makeBatterie(){
   const g=new THREE.Group();
   const matFut=matCol(0x2a4a34), matPeauF=matCol(0xd8d2c0), matMetal=matCol(0x8a8a92);
@@ -449,10 +467,10 @@ function makeBatterie(){
 }
 
 const POSITIONS=[
-  { x:-3.6, z:9.5 },
-  { x:-1.2, z:10.5 },
-  { x: 1.2, z:11.0 },
-  { x: 3.6, z:10.0 },
+  { x:-2.5, z:9.5 },  // polak
+  { x: 2, z:10.0 }, // steve
+  { x: 0,   z:11.0 }, // clem
+  { x:-1.2, z:10.5 }, // quentin
 ];
 MEMBRES.forEach((m,i)=>{
   const p=makeMusicien(m);
@@ -461,14 +479,22 @@ MEMBRES.forEach((m,i)=>{
   scene.add(p);
   m.mesh=p; m.basePos={...POSITIONS[i]};
 
-  if(m.id==='polak'){
+ if(m.id==='polak'){
     const gtr=makeGuitare(0x6a1818);
     gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
     p.add(gtr);
+    const ampli=makeAmplMarshall();
+    ampli.position.set(-1.8,0,0.5); ampli.rotation.y=0.3;
+    scene.add(ampli);
+    ampli.position.set(POSITIONS[0].x-1.8, 0, POSITIONS[0].z+0.5);
   } else if(m.id==='steve'){
     const gtr=makeGuitare(0x18304a);
     gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
     p.add(gtr);
+    const ampli=makeAmplOrange();
+    ampli.position.set(POSITIONS[1].x+1.8, 0, POSITIONS[1].z+0.5);
+    ampli.rotation.y=-0.3;
+    scene.add(ampli);
   } else if(m.id==='quentin'){
     const bass=makeGuitare(0x101014,1.1);
     bass.position.set(0.08,0.95,0.3); bass.rotation.z=-0.55;
@@ -1073,15 +1099,6 @@ function animate(){
 
   brumes.forEach(b=>{
     b.material.opacity=0.15+Math.sin(t*0.3+b.userData.va)*0.06;
-  });
-
-  // flammes des braseros qui dansent
-  flammes.forEach(f=>{
-    const v=Math.sin(t*7+f.seed)*0.5+Math.sin(t*13+f.seed*2)*0.5;
-    f.fl1.scale.set(1+v*0.12, 1+v*0.2, 1+v*0.12);
-    f.fl2.scale.set(1+v*0.18, 1+v*0.28, 1+v*0.18);
-    f.fl1.rotation.y+=dt*1.5;
-    f.lum.intensity=1.5+v*0.4;
   });
 
   if(phase==='intro' && introT>0){
