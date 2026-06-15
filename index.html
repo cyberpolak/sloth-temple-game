@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SLOTH TEMPLE vs SOMNUL</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden;
+    font-family:'Courier New', monospace; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  #game-canvas { width:100vw; height:100vh; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #crt { pointer-events:none; position:fixed; inset:0; z-index:5;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0.2) 0px, rgba(0,0,0,0.2) 1px, transparent 2px, transparent 4px);
+    mix-blend-mode:multiply; }
+  #flash { pointer-events:none; position:fixed; inset:0; z-index:7; background:#bfffc8; opacity:0; }
+
+  #boss-hud { position:fixed; top:max(10px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    z-index:10; width:min(420px, 86vw); text-align:center; pointer-events:none; }
+  #boss-nom { color:#bfffc8; font-size:14px; letter-spacing:5px; text-shadow:2px 2px 0 #000, 0 0 12px rgba(120,255,140,0.4); margin-bottom:4px; }
+  #boss-bar { width:100%; height:10px; background:#0a140c; border:1px solid #3a5a42; }
+  #boss-fill { height:100%; width:100%; background:linear-gradient(to right,#3a8a4e,#6affb0); transition:width 0.5s; }
+
+  #annonce { position:fixed; top:26%; width:100%; text-align:center; z-index:11; pointer-events:none;
+    color:#e8f0e0; font-size:clamp(16px,4vw,26px); letter-spacing:4px; font-weight:bold;
+    text-shadow:0 0 14px rgba(120,255,140,0.5), 2px 2px 0 #000; opacity:0; transition:opacity 0.3s; }
+
+  #panneau { position:fixed; left:0; right:0; bottom:0; z-index:12;
+    background:rgba(4,12,7,0.92); border-top:2px solid #2a4a34;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom)) 10px;
+    display:none; }
+  #equipe { display:flex; gap:6px; margin-bottom:8px; }
+  .membre { flex:1; background:rgba(10,24,14,0.8); border:1px solid #1e3826; padding:5px 6px; }
+  .membre.actif { border-color:#bfffc8; box-shadow:0 0 10px rgba(120,255,140,0.35); }
+  .membre.ko { opacity:0.35; }
+  .membre .nom { color:#cfe8cf; font-size:clamp(9px,2.4vw,12px); letter-spacing:1px; font-weight:bold; }
+  .membre .role { color:#5a7a60; font-size:clamp(7px,1.9vw,9px); letter-spacing:1px; }
+  .membre .pv-bar { height:5px; background:#0a140c; border:1px solid #24402c; margin-top:4px; }
+  .membre .pv-fill { height:100%; width:100%; background:#5aaa6a; transition:width 0.4s; }
+  .membre .statut { color:#c8d8a0; font-size:8px; min-height:10px; letter-spacing:1px; }
+
+  #riff-wrap { margin-bottom:8px; }
+  #riff-label { color:#8ab890; font-size:9px; letter-spacing:3px; margin-bottom:2px; }
+  #riff-bar { height:7px; background:#0a140c; border:1px solid #3a3a20; }
+  #riff-fill { height:100%; width:0%; background:linear-gradient(to right,#7a6a2a,#ffd84a); transition:width 0.4s; }
+  #riff-bar.plein { box-shadow:0 0 12px rgba(255,216,74,0.6); }
+
+  #actions { display:flex; gap:8px; }
+  .btn-action { flex:1; background:rgba(20,50,30,0.6); border:1px solid #3a6a48; color:#cfe8cf;
+    font-family:'Courier New',monospace; font-size:clamp(10px,2.8vw,14px); font-weight:bold; letter-spacing:1px;
+    padding:13px 4px; -webkit-tap-highlight-color:transparent; cursor:pointer; }
+  .btn-action:active { background:rgba(60,140,80,0.7); }
+  .btn-action small { display:block; font-size:8px; color:#7a9a80; font-weight:normal; margin-top:3px; letter-spacing:0; }
+  .btn-action.ulti { border-color:#ffd84a; color:#ffe89a; background:rgba(70,55,10,0.6);
+    box-shadow:0 0 14px rgba(255,216,74,0.4); }
+
+  #journal { position:fixed; bottom:0; left:0; right:0; z-index:12;
+    background:rgba(4,12,7,0.92); border-top:2px solid #2a4a34;
+    padding:16px 14px calc(16px + env(safe-area-inset-bottom)) 14px;
+    color:#cfe8cf; font-size:clamp(12px,3.2vw,15px); letter-spacing:1px; text-align:center;
+    min-height:30px; display:none; text-shadow:1px 1px 0 #000; }
+
+  .degats { position:fixed; z-index:13; pointer-events:none; font-weight:bold;
+    font-size:clamp(16px,4.5vw,26px); text-shadow:2px 2px 0 #000; letter-spacing:1px;
+    animation:monte 1.2s ease-out forwards; }
+  @keyframes monte { 0%{transform:translateY(0);opacity:1;} 100%{transform:translateY(-50px);opacity:0;} }
+
+  #overlay { position:fixed; inset:0; z-index:20; background:#020503;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#9fd8a8; text-align:center; cursor:pointer; padding:0 16px; box-sizing:border-box; }
+    #logo-accueil {
+  width: clamp(280px, 70%, 520px);
+  margin-bottom: 18px;
+  filter: drop-shadow(0 0 18px rgba(80,60,20,0.7));
+}
+  #overlay h1 { font-size:clamp(24px,7vw,44px); letter-spacing:8px; margin:0 0 6px 0; color:#bfffc8;
+    text-shadow:0 0 20px rgba(120,255,140,0.4), 2px 2px 0 #0a1a0e; }
+  #overlay h2 { font-size:clamp(9px,2.5vw,12px); letter-spacing:4px; color:#4a6a50; margin:0 0 26px 0; font-weight:normal; }
+  #overlay p { font-size:clamp(11px,2.8vw,14px); line-height:1.9; color:#7a9a80; max-width:520px; margin:0 0 24px 0; }
+  #overlay .start { font-size:clamp(12px,3vw,15px); color:#cfe8cf; animation:blink 2s steps(2) infinite; letter-spacing:3px; }
+  @keyframes blink { 50% { opacity:0.15; } }
+
+  #ecran-fin { position:fixed; inset:0; z-index:30; background:rgba(2,5,3,0.94); display:none;
+    flex-direction:column; align-items:center; justify-content:center; color:#bfffc8; text-align:center; padding:0 16px; }
+  #ecran-fin h1 { font-size:clamp(22px,6vw,38px); letter-spacing:8px; text-shadow:0 0 24px rgba(120,255,140,0.6); margin-bottom:14px; }
+  #ecran-fin p { color:#8ab890; font-size:clamp(11px,2.8vw,14px); letter-spacing:1px; line-height:2; margin-bottom:26px; }
+  #btn-rejouer { background:rgba(20,50,30,0.6); border:1px solid #3a6a48; color:#cfe8cf;
+    font-family:'Courier New',monospace; font-size:14px; letter-spacing:2px; padding:13px 30px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+<div id="crt"></div>
+<div id="flash"></div>
+
+<div id="boss-hud">
+  <div id="boss-nom">SOMNUL — LE PARESSEUX COSMIQUE</div>
+  <div id="boss-bar"><div id="boss-fill"></div></div>
+</div>
+
+<div id="annonce"></div>
+
+<div id="panneau">
+  <div id="equipe"></div>
+  <div id="riff-wrap">
+    <div id="riff-label">RIFF COLLECTIF — ULTI À 100%</div>
+    <div id="riff-bar"><div id="riff-fill"></div></div>
+  </div>
+  <div id="actions"></div>
+</div>
+
+<div id="journal"></div>
+
+<div id="overlay">
+<img id="logo-accueil" src="logo.png" alt="SLOTH TEMPLE">
+  <h2>COMBAT RITUEL EN TOUR PAR TOUR — 199X</h2>
+  <p>
+    Le dieu paresseux s'est éveillé en colère : on l'a tiré de son sommeil cosmique.<br>
+    Une seule façon de le rendormir — jouer le riff le plus lourd de l'histoire.<br><br>
+    POLAK chant/guitare · STEVE guitare · QUENTIN basse · CLEM batterie
+  </p>
+  <div class="start">TOUCHE POUR MONTER SUR SCÈNE</div>
+</div>
+
+<div id="ecran-fin">
+  <h1 id="fin-titre"></h1>
+  <p id="fin-texte"></p>
+  <button id="btn-rejouer">REJOUER</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+//  SLOTH TEMPLE vs SOMNUL — JRPG tour par tour façon PS1
+//  Le groupe doit rendormir son dieu à coups de FUZZ
+// ============================================================
+
+const RES_W=320, RES_H=240;
+
+const SOMNUL_PV_MAX=600;
+let somnulPV=SOMNUL_PV_MAX;
+let riff=0;
+let phase='intro';
+let tourIndex=0;
+let introT=0;
+let somnulEndormi=false;
+
+const MEMBRES=[
+  { id:'polak',   nom:'POLAK',   role:'CHANT / GUITARE', pv:100, pvMax:100, dort:false,
+    attaque:'GUITARE FUZZ', desc:'gros dégâts', couleurCheveux:0x2a1c12, peau:0xc89878, haut:0x17171b },
+  { id:'steve',   nom:'STEVE',   role:'GUITARE',         pv:100, pvMax:100, dort:false,
+    attaque:'ATTAQUE RIFFLORD', desc:'très gros dégâts + charge le RIFF', couleurCheveux:0x141210, peau:0xb89070, haut:0x1c1418 },
+  { id:'clem',    nom:'CLEM',    role:'BATTERIE',        pv:100, pvMax:100, dort:false,
+    attaque:'KALIMBA', desc:'soigne le groupe + peut endormir Somnul', couleurCheveux:0x4a3018, peau:0xd0a888, haut:0x14181c },
+  { id:'quentin', nom:'QUENTIN', role:'BASSE',           pv:100, pvMax:100, dort:false,
+    attaque:'BASS FUZZ', desc:'ULTI — riff à 100%', couleurCheveux:0x1a1a1a, peau:0xc09878, haut:0x181420 },
+];
+
+// ---------- Renderer ----------
+const canvas=document.getElementById('game-canvas');
+const renderer=new THREE.WebGLRenderer({ canvas, antialias:false });
+renderer.setSize(RES_W,RES_H,false); renderer.setPixelRatio(1);
+
+const scene=new THREE.Scene();
+const FOG_COL=0x07120a;
+scene.background=new THREE.Color(FOG_COL);
+scene.fog=new THREE.Fog(FOG_COL,8,60);
+
+const camera=new THREE.PerspectiveCamera(58,RES_W/RES_H,0.1,90);
+
+// ---------- PS1 ----------
+function ps1ify(m){
+  m.onBeforeCompile=(s)=>{
+    s.vertexShader=s.vertexShader.replace('#include <project_vertex>',
+      `#include <project_vertex>
+       vec4 sp=gl_Position; sp.xyz/=sp.w;
+       sp.xy=floor(sp.xy*vec2(${RES_W/2}.0,${RES_H/2}.0))/vec2(${RES_W/2}.0,${RES_H/2}.0);
+       sp.xyz*=sp.w; gl_Position=sp;`);
+  };
+  return m;
+}
+function matCol(hex){ return ps1ify(new THREE.MeshLambertMaterial({ color:hex })); }
+function makeTex(draw,size=64){
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  draw(c.getContext('2d'),size);
+  const t=new THREE.CanvasTexture(c);
+  t.magFilter=t.minFilter=THREE.NearestFilter;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+// ---------- Décor ----------
+const texDalle=makeTex((g,s)=>{
+  g.fillStyle='#15201a'; g.fillRect(0,0,s,s);
+  g.strokeStyle='#0c1410'; g.lineWidth=2;
+  g.strokeRect(1,1,s/2-2,s/2-2); g.strokeRect(s/2+1,1,s/2-2,s/2-2);
+  g.strokeRect(1,s/2+1,s/2-2,s/2-2); g.strokeRect(s/2+1,s/2+1,s/2-2,s/2-2);
+  for(let i=0;i<120;i++){ g.fillStyle=Math.random()<0.5?'#1a261f':'#101a14';
+    g.fillRect(Math.random()*s|0,Math.random()*s|0,2,2); }
+});
+texDalle.repeat.set(14,14);
+const texPierre=makeTex((g,s)=>{
+  g.fillStyle='#2a342e'; g.fillRect(0,0,s,s);
+  for(let i=0;i<150;i++){ g.fillStyle=Math.random()<0.5?'#222b25':'#333f37';
+    g.fillRect(Math.random()*s|0,Math.random()*s|0,3,2); }
+  for(let y=0;y<s;y+=10){ g.fillStyle='#1c241f'; g.fillRect(0,y,s,1); }
+});
+const texFourrure=makeTex((g,s)=>{
+  g.fillStyle='#4a4438'; g.fillRect(0,0,s,s);
+  for(let i=0;i<400;i++){
+    g.fillStyle=Math.random()<0.4?'#3c382e':(Math.random()<0.5?'#565041':'#4e5a42');
+    g.fillRect(Math.random()*s|0,Math.random()*s|0,1,3+Math.random()*3|0);
+  }
+});
+
+scene.add(new THREE.HemisphereLight(0x3a5a44,0x0a140c,1.1));
+const lumScene=new THREE.PointLight(0x9fd8a8,1.6,50,1.2);
+lumScene.position.set(0,10,8); scene.add(lumScene);
+const lumFace=new THREE.DirectionalLight(0x8aa890,0.5);
+lumFace.position.set(4,12,20); scene.add(lumFace);
+
+const sol=new THREE.Mesh(new THREE.PlaneGeometry(70,70),
+  ps1ify(new THREE.MeshLambertMaterial({ map:texDalle })));
+sol.rotation.x=-Math.PI/2; scene.add(sol);
+
+const matPierre=ps1ify(new THREE.MeshLambertMaterial({ map:texPierre }));
+for(let a=0;a<Math.PI*2;a+=Math.PI/8){
+  const px=Math.cos(a)*24, pz=Math.sin(a)*24;
+  const col=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.85,10,6),matPierre);
+  col.position.set(px,5,pz); scene.add(col);
+}
+
+// murs du temple au fond et plafond suggéré (architecture fermée)
+const mur=new THREE.Mesh(new THREE.BoxGeometry(50,14,1.5),matPierre);
+mur.position.set(0,7,-22); scene.add(mur);
+[-1,1].forEach(s=>{
+  const murCote=new THREE.Mesh(new THREE.BoxGeometry(1.5,14,46),matPierre);
+  murCote.position.set(s*22,7,0); scene.add(murCote);
+});
+
+// ----- BRASEROS le long des côtés -----
+const flammes=[];
+function makeBrasero(x,z){
+  const g=new THREE.Group();
+  const pied=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.25,1.5,6),matCol(0x2a2420));
+  pied.position.y=0.75; g.add(pied);
+  const coupe=new THREE.Mesh(new THREE.CylinderGeometry(0.65,0.35,0.45,8),matCol(0x3a3028));
+  coupe.position.y=1.65; g.add(coupe);
+  // flamme : cônes émissifs imbriqués
+  const fl1=new THREE.Mesh(new THREE.ConeGeometry(0.42,1.1,6),
+    ps1ify(new THREE.MeshLambertMaterial({ color:0xff8a2a, emissive:0xff6a1a, emissiveIntensity:1.4 })));
+  fl1.position.y=2.35; g.add(fl1);
+  const fl2=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.7,5),
+    ps1ify(new THREE.MeshLambertMaterial({ color:0xffd86a, emissive:0xffc84a, emissiveIntensity:1.8 })));
+  fl2.position.y=2.5; g.add(fl2);
+  const lum=new THREE.PointLight(0xff9a3a,1.6,16,1.5);
+  lum.position.y=2.5; g.add(lum);
+  g.position.set(x,0,z);
+  scene.add(g);
+  flammes.push({fl1,fl2,lum,seed:Math.random()*10});
+}
+// deux rangées de braseros encadrant l'arène
+[-14,-7,0,7,14].forEach(z=>{
+  makeBrasero(-13, z-4);
+  makeBrasero( 13, z-4);
+});
+// deux braseros qui encadrent Somnul
+makeBrasero(-6,-14);
+makeBrasero( 6,-14);
+
+const texBrume=makeTex((g,s)=>{
+  const grad=g.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+  grad.addColorStop(0,'rgba(80,160,100,0.5)'); grad.addColorStop(1,'rgba(80,160,100,0)');
+  g.fillStyle=grad; g.fillRect(0,0,s,s);
+},32);
+const brumes=[];
+for(let i=0;i<16;i++){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:texBrume, transparent:true, opacity:0.2, depthWrite:false }));
+  const r=5+Math.random()*18, a=Math.random()*Math.PI*2;
+  sp.position.set(Math.cos(a)*r,0.5+Math.random()*2,Math.sin(a)*r);
+  sp.scale.set(6+Math.random()*5,3,1);
+  sp.userData.va=Math.random()*10;
+  scene.add(sp); brumes.push(sp);
+}
+
+// ============================================================
+//  SOMNUL
+// ============================================================
+const somnul=new THREE.Group();
+const matFour=ps1ify(new THREE.MeshLambertMaterial({ map:texFourrure }));
+const matGriffe=matCol(0xb8a878);
+
+const corps=new THREE.Mesh(new THREE.SphereGeometry(3.2,10,8),matFour);
+corps.scale.set(1,1.25,0.9); corps.position.y=4.6; corps.rotation.x=0.25;
+somnul.add(corps);
+const ventreS=new THREE.Mesh(new THREE.SphereGeometry(2.4,9,7),matCol(0x5c5444));
+ventreS.position.set(0,4.0,1.4); ventreS.scale.set(1,1.15,0.55);
+somnul.add(ventreS);
+
+const teteS=new THREE.Group();
+const craneS=new THREE.Mesh(new THREE.SphereGeometry(1.35,10,8),matFour);
+craneS.scale.set(1,0.95,0.95); teteS.add(craneS);
+const museau=new THREE.Mesh(new THREE.SphereGeometry(0.7,8,6),matCol(0x6a6050));
+museau.position.set(0,-0.25,1.0); museau.scale.set(1,0.8,0.7); teteS.add(museau);
+const truffe=new THREE.Mesh(new THREE.SphereGeometry(0.22,6,5),matCol(0x1a1410));
+truffe.position.set(0,-0.2,1.62); teteS.add(truffe);
+const yeux=[];
+[-1,1].forEach(s=>{
+  const bande=new THREE.Mesh(new THREE.SphereGeometry(0.42,7,5),matCol(0x241e14));
+  bande.position.set(s*0.55,0.18,0.95); bande.scale.set(1.15,0.6,0.5);
+  teteS.add(bande);
+  const oeil=new THREE.Mesh(new THREE.SphereGeometry(0.15,6,5),
+    ps1ify(new THREE.MeshLambertMaterial({ color:0x0a140e, emissive:0x3aff7a, emissiveIntensity:1.4 })));
+  oeil.position.set(s*0.5,0.18,1.28);
+  teteS.add(oeil); yeux.push(oeil);
+});
+const sourireS=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.05,4,8,Math.PI),matCol(0x1a1410));
+sourireS.position.set(0,-0.55,1.45); sourireS.rotation.x=Math.PI;
+teteS.add(sourireS);
+teteS.position.set(0,8.3,1.2); teteS.rotation.x=0.1;
+somnul.add(teteS);
+
+function brasSomnul(side){
+  const g=new THREE.Group();
+  const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.5,4.4,7),matFour);
+  haut.position.y=-2.2; g.add(haut);
+  const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.48,0.4,3.8,7),matFour);
+  avant.position.y=-6.0; g.add(avant);
+  for(let i=0;i<3;i++){
+    const griffe=new THREE.Mesh(new THREE.ConeGeometry(0.16,1.6,5),matGriffe);
+    griffe.position.set((i-1)*0.35,-8.4,0.1);
+    griffe.rotation.x=Math.PI*0.92;
+    g.add(griffe);
+  }
+  g.position.set(side*2.9,7.2,0.4);
+  g.rotation.z=side*0.35;
+  somnul.add(g);
+  return g;
+}
+const brasSG=brasSomnul(-1), brasSD=brasSomnul(1);
+[-1,1].forEach(s=>{
+  const patte=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.95,2.4,7),matFour);
+  patte.position.set(s*1.6,1.2,0);
+  somnul.add(patte);
+});
+const lumSomnul=new THREE.PointLight(0x4aff8a,1.8,30,1.4);
+lumSomnul.position.set(0,9,3); somnul.add(lumSomnul);
+
+somnul.position.set(0,-16,-10);
+scene.add(somnul);
+
+// ============================================================
+//  LES MUSICIENS
+// ============================================================
+function makeMusicien(cfg){
+  const g=new THREE.Group();
+  const matPeau=matCol(cfg.peau), matChev=matCol(cfg.couleurCheveux);
+  const matHaut=matCol(cfg.haut), matBas=matCol(0x22221c), matBotte=matCol(0x14110e);
+
+  const buste=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.27,0.5,8),matHaut);
+  buste.position.y=1.3; buste.scale.z=0.75; g.add(buste);
+  const ventre=new THREE.Mesh(new THREE.SphereGeometry(0.29,8,6),matHaut);
+  ventre.position.y=1.0; ventre.scale.set(1,0.85,0.78); g.add(ventre);
+
+  const tete=new THREE.Group();
+  const crane=new THREE.Mesh(new THREE.SphereGeometry(0.21,9,7),matPeau);
+  crane.scale.set(1,1.08,0.95); tete.add(crane);
+  const tignasse=new THREE.Mesh(new THREE.SphereGeometry(0.23,8,6,0,Math.PI*2,0,Math.PI*0.55),matChev);
+  tignasse.position.y=0.04; tete.add(tignasse);
+  const rideau=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.5,0.1),matChev);
+  rideau.position.set(0,-0.15,-0.16); tete.add(rideau);
+  const barbe=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.16,0.08),matChev);
+  barbe.position.set(0,-0.18,0.14); tete.add(barbe);
+  tete.position.y=1.82;
+  g.add(tete); g.userData.tete=tete;
+
+  function bras(side){
+    const b=new THREE.Group();
+    const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.4,6),matHaut);
+    haut.position.y=-0.2; b.add(haut);
+    const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,6),matPeau);
+    avant.position.y=-0.58; b.add(avant);
+    const poing=new THREE.Mesh(new THREE.SphereGeometry(0.075,6,5),matPeau);
+    poing.position.y=-0.8; b.add(poing);
+    b.position.set(side*0.4,1.5,0);
+    g.add(b);
+    return b;
+  }
+  g.userData.brasG=bras(-1);
+  g.userData.brasD=bras(1);
+
+  function jambe(side){
+    const j=new THREE.Group();
+    const cuisse=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.1,0.4,6),matBas);
+    cuisse.position.y=-0.2; j.add(cuisse);
+    const tibia=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.09,0.36,6),matBas);
+    tibia.position.y=-0.58; j.add(tibia);
+    const botte=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.14,0.28),matBotte);
+    botte.position.set(0,-0.8,0.04); j.add(botte);
+    j.position.set(side*0.16,0.8,0);
+    g.add(j);
+    return j;
+  }
+  jambe(-1); jambe(1);
+  return g;
+}
+
+function makeGuitare(couleur, longueurManche=0.85){
+  const g=new THREE.Group();
+  const corpsG=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.5,0.09),matCol(couleur));
+  g.add(corpsG);
+  const manche=new THREE.Mesh(new THREE.BoxGeometry(0.07,longueurManche,0.05),matCol(0x3a2a1a));
+  manche.position.y=0.25+longueurManche/2; g.add(manche);
+  const tt=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.16,0.05),matCol(0x14100c));
+  tt.position.y=0.25+longueurManche+0.07; g.add(tt);
+  return g;
+}
+function makeBatterie(){
+  const g=new THREE.Group();
+  const matFut=matCol(0x2a4a34), matPeauF=matCol(0xd8d2c0), matMetal=matCol(0x8a8a92);
+  const kick=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.4,10),matFut);
+  kick.rotation.x=Math.PI/2; kick.position.set(0,0.42,0); g.add(kick);
+  const kickPeau=new THREE.Mesh(new THREE.CylinderGeometry(0.43,0.43,0.02,10),matPeauF);
+  kickPeau.rotation.x=Math.PI/2; kickPeau.position.set(0,0.42,0.21); g.add(kickPeau);
+  [-0.35,0.35].forEach(x=>{
+    const tom=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.22,8),matFut);
+    tom.position.set(x,0.95,-0.05); tom.rotation.x=0.3; g.add(tom);
+  });
+  const cymb=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.02,10),matMetal);
+  cymb.position.set(0.6,1.3,-0.1); cymb.rotation.z=0.1; g.add(cymb);
+  const pied=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.3,4),matMetal);
+  pied.position.set(0.6,0.65,-0.1); g.add(pied);
+  return g;
+}
+
+const POSITIONS=[
+  { x:-3.6, z:9.5 },
+  { x:-1.2, z:10.5 },
+  { x: 1.2, z:11.0 },
+  { x: 3.6, z:10.0 },
+];
+MEMBRES.forEach((m,i)=>{
+  const p=makeMusicien(m);
+  p.position.set(POSITIONS[i].x,0,POSITIONS[i].z);
+  p.rotation.y=Math.PI;
+  scene.add(p);
+  m.mesh=p; m.basePos={...POSITIONS[i]};
+
+  if(m.id==='polak'){
+    const gtr=makeGuitare(0x6a1818);
+    gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
+    p.add(gtr);
+  } else if(m.id==='steve'){
+    const gtr=makeGuitare(0x18304a);
+    gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
+    p.add(gtr);
+  } else if(m.id==='quentin'){
+    const bass=makeGuitare(0x101014,1.1);
+    bass.position.set(0.08,0.95,0.3); bass.rotation.z=-0.55;
+    p.add(bass);
+  } else if(m.id==='clem'){
+    const drums=makeBatterie();
+    drums.position.set(0,0,-1.1);
+    p.add(drums);
+  }
+});
+
+// ---------- Caméra ----------
+const camBase={ x:7.5, y:4.2, z:17 };
+let camShake=0;
+camera.position.set(camBase.x,camBase.y,camBase.z);
+
+// ---------- UI ----------
+const bossFill=document.getElementById('boss-fill');
+const annonce=document.getElementById('annonce');
+const panneau=document.getElementById('panneau');
+const equipeEl=document.getElementById('equipe');
+const actionsEl=document.getElementById('actions');
+const riffFill=document.getElementById('riff-fill');
+const riffBar=document.getElementById('riff-bar');
+const journal=document.getElementById('journal');
+const flash=document.getElementById('flash');
+
+function majUI(){
+  bossFill.style.width=(somnulPV/SOMNUL_PV_MAX*100)+'%';
+  riffFill.style.width=riff+'%';
+  riffBar.classList.toggle('plein',riff>=100);
+  equipeEl.innerHTML=MEMBRES.map((m,i)=>`
+    <div class="membre ${i===tourIndex&&phase==='menu'?'actif':''} ${m.pv<=0?'ko':''}">
+      <div class="nom">${m.nom}</div>
+      <div class="role">${m.role}</div>
+      <div class="pv-bar"><div class="pv-fill" style="width:${Math.max(0,m.pv/m.pvMax*100)}%;
+        background:${m.pv>50?'#5aaa6a':m.pv>20?'#aa9a4a':'#aa5a4a'}"></div></div>
+      <div class="statut">${m.pv<=0?'DISSOUS':(m.dort?'ENDORMI 💤':'')}</div>
+    </div>`).join('');
+}
+
+function annoncer(txt,dur=1600){
+  return new Promise(res=>{
+    annonce.textContent=txt;
+    annonce.style.opacity=1;
+    setTimeout(()=>{ annonce.style.opacity=0; setTimeout(res,300); },dur);
+  });
+}
+function log(txt){
+  journal.textContent=txt;
+  journal.style.display='block';
+  panneau.style.display='none';
+}
+function montrerMenu(){
+  journal.style.display='none';
+  panneau.style.display='block';
+  majUI();
+}
+function flasher(col='#bfffc8',op=0.5){
+  flash.style.background=col;
+  flash.style.transition='none';
+  flash.style.opacity=op;
+  requestAnimationFrame(()=>{
+    flash.style.transition='opacity 0.5s';
+    flash.style.opacity=0;
+  });
+}
+function degatsFlottants(obj3d,txt,couleur){
+  const v=new THREE.Vector3();
+  obj3d.getWorldPosition(v);
+  v.y+=(obj3d===somnul?9:2.2);
+  v.project(camera);
+  const x=(v.x*0.5+0.5)*window.innerWidth;
+  const y=(-v.y*0.5+0.5)*window.innerHeight;
+  const d=document.createElement('div');
+  d.className='degats';
+  d.style.left=(x-30)+'px'; d.style.top=y+'px';
+  d.style.color=couleur;
+  d.textContent=txt;
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),1300);
+}
+
+// ---------- Audio ----------
+let actx, master;
+function initAudio(){
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=0.5; master.connect(actx.destination);
+  const dg=actx.createGain(); dg.gain.value=0.05; dg.connect(master);
+  [41.2,41.7,82.6].forEach(f=>{
+    const o=actx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+    const flt=actx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=160;
+    o.connect(flt); flt.connect(dg); o.start();
+  });
+}
+function distGain(amount=40){
+  const ws=actx.createWaveShaper();
+  const n=256, curve=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i/n*2-1; curve[i]=Math.tanh(x*amount)/Math.tanh(amount*0.4); }
+  ws.curve=curve;
+  return ws;
+}
+function sonGuitareFuzz(){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  [82.4,123.5,164.8].forEach(f=>{
+    const o=actx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+    const ws=distGain(50);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.12,t0);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+1.4);
+    o.connect(ws); ws.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0+1.5);
+  });
+}
+function sonRifflord(){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  // riff descendant : Mi - Ré - Do# grave, palm muted puis chord final
+  const notes=[[82.4,0,0.25],[73.4,0.3,0.25],[69.3,0.6,0.25],[82.4,1.0,1.2]];
+  notes.forEach(([f,dt,dur])=>{
+    [f,f*1.5].forEach(ff=>{
+      const o=actx.createOscillator(); o.type='sawtooth'; o.frequency.value=ff;
+      const ws=distGain(65);
+      const g=actx.createGain();
+      g.gain.setValueAtTime(0.13,t0+dt);
+      g.gain.exponentialRampToValueAtTime(0.001,t0+dt+dur);
+      o.connect(ws); ws.connect(g); g.connect(master);
+      o.start(t0+dt); o.stop(t0+dt+dur+0.1);
+    });
+  });
+}
+function sonKalimba(){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  [392,523,659,784].forEach((f,i)=>{
+    const o=actx.createOscillator(); o.type='sine'; o.frequency.value=f;
+    const ws=distGain(8);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0,t0+i*0.16);
+    g.gain.linearRampToValueAtTime(0.14,t0+i*0.16+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+i*0.16+0.7);
+    o.connect(ws); ws.connect(g); g.connect(master);
+    o.start(t0+i*0.16); o.stop(t0+i*0.16+0.8);
+  });
+}
+function sonTambour(){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  for(let i=0;i<4;i++){
+    const tt=t0+i*0.3;
+    const o=actx.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(110,tt);
+    o.frequency.exponentialRampToValueAtTime(45,tt+0.18);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.35,tt);
+    g.gain.exponentialRampToValueAtTime(0.001,tt+0.3);
+    o.connect(g); g.connect(master);
+    o.start(tt); o.stop(tt+0.35);
+  }
+}
+function sonBassFuzz(){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  const o=actx.createOscillator(); o.type='sawtooth';
+  o.frequency.setValueAtTime(55,t0);
+  o.frequency.linearRampToValueAtTime(27.5,t0+2.2);
+  const o2=actx.createOscillator(); o2.type='square';
+  o2.frequency.setValueAtTime(55.3,t0);
+  o2.frequency.linearRampToValueAtTime(27.7,t0+2.2);
+  const ws=distGain(80);
+  const g=actx.createGain();
+  g.gain.setValueAtTime(0.4,t0);
+  g.gain.setValueAtTime(0.4,t0+1.8);
+  g.gain.exponentialRampToValueAtTime(0.001,t0+3);
+  o.connect(ws); o2.connect(ws); ws.connect(g); g.connect(master);
+  o.start(t0); o.stop(t0+3); o2.start(t0); o2.stop(t0+3);
+}
+function sonSomnul(type){
+  if(!actx) return;
+  const t0=actx.currentTime;
+  if(type==='grogne'){
+    const o=actx.createOscillator(); o.type='sawtooth';
+    o.frequency.setValueAtTime(60,t0);
+    o.frequency.exponentialRampToValueAtTime(32,t0+1.6);
+    const flt=actx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=200;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.3,t0);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+1.8);
+    o.connect(flt); flt.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0+2);
+  } else {
+    const o=actx.createOscillator(); o.type='triangle';
+    o.frequency.setValueAtTime(90,t0);
+    o.frequency.linearRampToValueAtTime(140,t0+0.8);
+    o.frequency.linearRampToValueAtTime(50,t0+2);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.22,t0);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+2.2);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0+2.3);
+  }
+}
+
+// ---------- Animations ponctuelles ----------
+const anims=[];
+function animer(fn){ anims.push(fn); }
+
+function animAttaqueMusicien(m,duree=1.2){
+  const mesh=m.mesh, t0=performance.now()/1000;
+  const baseZ=m.basePos.z;
+  animer((now)=>{
+    const e=(now-t0)/duree;
+    if(e>=1){ mesh.position.z=baseZ; mesh.userData.brasD.rotation.x=0; return true; }
+    const lunge=Math.sin(Math.min(e*2,1)*Math.PI)*1.2;
+    mesh.position.z=baseZ-lunge;
+    mesh.userData.brasD.rotation.x=-Math.sin(e*Math.PI*4)*1.8;
+    mesh.userData.tete.rotation.x=Math.sin(e*Math.PI*6)*0.4;
+    return false;
+  });
+}
+function animSomnulTouche(){
+  const t0=performance.now()/1000;
+  animer((now)=>{
+    const e=(now-t0)/0.6;
+    if(e>=1){ somnul.rotation.z=0; return true; }
+    somnul.rotation.z=Math.sin(e*Math.PI*3)*0.06*(1-e);
+    return false;
+  });
+  camShake=0.25;
+}
+function animSomnulAttaque(quel){
+  const t0=performance.now()/1000;
+  if(quel==='griffe'){
+    animer((now)=>{
+      const e=(now-t0)/1.4;
+      if(e>=1){ brasSD.rotation.x=0; return true; }
+      brasSD.rotation.x=e<0.5 ? -e*2*1.6 : -(1-(e-0.5)*2)*1.6;
+      return false;
+    });
+  } else {
+    animer((now)=>{
+      const e=(now-t0)/1.8;
+      if(e>=1){ teteS.rotation.x=0.1; teteS.scale.set(1,1,1); return true; }
+      teteS.rotation.x=0.1-Math.sin(e*Math.PI)*0.4;
+      const s=1+Math.sin(e*Math.PI)*0.12;
+      teteS.scale.set(s,s,s);
+      return false;
+    });
+  }
+}
+
+// ============================================================
+//  LOGIQUE DE COMBAT
+// ============================================================
+const dodo=(ms)=>new Promise(r=>setTimeout(r,ms));
+function vivants(){ return MEMBRES.filter(m=>m.pv>0); }
+function ajouterRiff(n){ riff=Math.min(100,riff+n); }
+
+async function attaqueMembre(m){
+  panneau.style.display='none';
+  phase='anim';
+
+  if(m.id==='polak'){
+    log("POLAK — GUITARE FUZZ ! Le power chord de Mi fait vibrer les colonnes.");
+    sonGuitareFuzz(); animAttaqueMusicien(m); flasher('#ffaa5a',0.35);
+    await dodo(900);
+    const deg=18+Math.floor(Math.random()*9);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#ffd84a');
+    animSomnulTouche(); sonSomnul('grogne');
+    ajouterRiff(25);
+  }
+  else if(m.id==='steve'){
+    log("STEVE — ATTAQUE RIFFLORD ! Le riff qui couche les empires.");
+    sonRifflord(); animAttaqueMusicien(m,1.5); flasher('#ff8a3a',0.45);
+    await dodo(1100);
+    const deg=22+Math.floor(Math.random()*9);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#ff9a4a');
+    animSomnulTouche(); sonSomnul('grogne');
+    camShake=0.4;
+    ajouterRiff(30);
+  }
+  else if(m.id==='clem'){
+    log("CLEM — KALIMBA ! La berceuse rituelle apaise le groupe... et le dieu.");
+    sonKalimba(); animAttaqueMusicien(m); flasher('#8ad8ff',0.3);
+    await dodo(1100);
+    const deg=8+Math.floor(Math.random()*6);
+    somnulPV=Math.max(0,somnulPV-deg);
+    degatsFlottants(somnul,'-'+deg,'#8ad8ff');
+    animSomnulTouche();
+    MEMBRES.forEach(x=>{
+      if(x.pv>0){
+        x.pv=Math.min(x.pvMax,x.pv+12);
+        degatsFlottants(x.mesh,'+12','#7aff9a');
+        if(x.dort && Math.random()<0.5){ x.dort=false; }
+      }
+    });
+    ajouterRiff(20);
+    if(Math.random()<0.3){
+      await dodo(600);
+      log("La kalimba berce Somnul... il pique du nez ! Il passera son tour.");
+      somnulEndormi=true;
+      yeux.forEach(o=>o.material.emissiveIntensity=0.2);
+      await dodo(1400);
+    }
+  }
+  else if(m.id==='quentin'){
+    if(riff>=100){
+      log("QUENTIN — BASS FUZZ !!! L'ULTI. Le drop d'octave qui rendort les dieux.");
+      sonBassFuzz(); animAttaqueMusicien(m,2.2);
+      camShake=0.7;
+      flasher('#ffd84a',0.7);
+      await dodo(1800);
+      const deg=65+Math.floor(Math.random()*16);
+      somnulPV=Math.max(0,somnulPV-deg);
+      degatsFlottants(somnul,'-'+deg+' !!','#ffd84a');
+      animSomnulTouche(); sonSomnul('grogne');
+      riff=0;
+      MEMBRES.forEach(x=>{ if(x.dort){ x.dort=false; degatsFlottants(x.mesh,'RÉVEIL','#ffd84a'); } });
+    } else {
+      log("QUENTIN tient le groove... la ligne de basse charge le RIFF (+30).");
+      sonTambour(); animAttaqueMusicien(m,0.9);
+      await dodo(900);
+      ajouterRiff(30);
+      const deg=6+Math.floor(Math.random()*5);
+      somnulPV=Math.max(0,somnulPV-deg);
+      degatsFlottants(somnul,'-'+deg,'#cfe8cf');
+    }
+  }
+
+  majUI();
+  await dodo(1100);
+  tourSuivant();
+}
+
+async function tourSomnul(){
+  phase='somnul';
+  majUI();
+
+  if(somnulPV<=0){ victoire(); return; }
+  if(vivants().length===0){ defaite(); return; }
+
+  if(somnulEndormi){
+    log("Somnul somnole... il passe son tour. 💤");
+    somnulEndormi=false;
+    yeux.forEach(o=>o.material.emissiveIntensity=1.4);
+    await dodo(1800);
+    nouveauTour();
+    return;
+  }
+
+  await annoncer("TOUR DE SOMNUL",1100);
+  const r=Math.random();
+  const cibles=vivants();
+
+  if(r<0.3){
+    log("SOMNUL — GRIFFE LENTE. Inéluctable. Très lente. Mais inéluctable.");
+    animSomnulAttaque('griffe'); sonSomnul('grogne');
+    await dodo(1300);
+    const cible=cibles[Math.floor(Math.random()*cibles.length)];
+    const deg=24+Math.floor(Math.random()*12);
+    cible.pv=Math.max(0,cible.pv-deg);
+    degatsFlottants(cible.mesh,'-'+deg,'#ff7a5a');
+    camShake=0.5; flasher('#3aff7a',0.25);
+    if(cible.pv<=0){ await dodo(500); log(cible.nom+" se dissout dans la torpeur..."); await dodo(1100); }
+  }
+  else if(r<0.6){
+    log("SOMNUL — BÂILLEMENT COSMIQUE. Un bâillement qui contamine l'univers.");
+    animSomnulAttaque('baille'); sonSomnul('baille');
+    await dodo(1500);
+    cibles.forEach(c=>{
+      const deg=8+Math.floor(Math.random()*5);
+      c.pv=Math.max(0,c.pv-deg);
+      degatsFlottants(c.mesh,'-'+deg,'#ff9a7a');
+    });
+    const dormeur=cibles[Math.floor(Math.random()*cibles.length)];
+    if(Math.random()<0.55 && dormeur.pv>0){
+      dormeur.dort=true;
+      await dodo(700);
+      log(dormeur.nom+" s'endort ! C'est contagieux, un bâillement pareil. 💤");
+      await dodo(1200);
+    }
+  }
+  else if(r<0.85){
+    log("SOMNUL — SPORES DE MOUSSE. Sa fourrure libère un nuage anesthésiant.");
+    sonSomnul('baille');
+    flasher('#4a8a5a',0.4);
+    await dodo(1300);
+    cibles.forEach(c=>{
+      const deg=6+Math.floor(Math.random()*4);
+      c.pv=Math.max(0,c.pv-deg);
+      degatsFlottants(c.mesh,'-'+deg,'#9ad89a');
+    });
+    riff=Math.max(0,riff-20);
+    await dodo(600);
+    log("Les spores engourdissent les doigts... le RIFF perd 20%.");
+    await dodo(1100);
+  }
+  else {
+    log("SOMNUL — REGARD MILLÉNAIRE. Il vous fixe. Toute hâte semble soudain dérisoire.");
+    yeux.forEach(o=>o.material.emissiveIntensity=3);
+    await dodo(1600);
+    yeux.forEach(o=>o.material.emissiveIntensity=1.4);
+    riff=Math.max(0,Math.floor(riff/2));
+    cibles.forEach(c=>{
+      const deg=4+Math.floor(Math.random()*3);
+      c.pv=Math.max(0,c.pv-deg);
+      degatsFlottants(c.mesh,'-'+deg,'#c8c8a0');
+    });
+    await dodo(400);
+    log("Le RIFF collectif est divisé par deux.");
+    await dodo(1100);
+  }
+
+  majUI();
+  await dodo(600);
+
+  if(vivants().length===0){ defaite(); return; }
+  nouveauTour();
+}
+
+function nouveauTour(){
+  tourIndex=0;
+  prochainMembre();
+}
+async function prochainMembre(){
+  if(somnulPV<=0){ victoire(); return; }
+  while(tourIndex<MEMBRES.length){
+    const m=MEMBRES[tourIndex];
+    if(m.pv<=0){ tourIndex++; continue; }
+    if(m.dort){
+      const reveil=Math.random()<0.4;
+      log(m.nom+" dort profondément... 💤"+(reveil?" Mais il se réveille !":""));
+      await dodo(1500);
+      if(reveil){ m.dort=false; majUI(); continue; }
+      tourIndex++;
+      continue;
+    }
+    phase='menu';
+    montrerActions(m);
+    return;
+  }
+  tourSomnul();
+}
+function tourSuivant(){
+  tourIndex++;
+  prochainMembre();
+}
+
+function montrerActions(m){
+  montrerMenu();
+  actionsEl.innerHTML='';
+  const btn=document.createElement('button');
+  btn.className='btn-action'+(m.id==='quentin'&&riff>=100?' ulti':'');
+  if(m.id==='quentin'){
+    if(riff>=100){
+      btn.innerHTML=`🤘 BASS FUZZ <small>ULTI — dégâts massifs + réveille le groupe</small>`;
+    } else {
+      btn.innerHTML=`TENIR LE GROOVE <small>+30 RIFF, petits dégâts (ulti à ${riff}%)</small>`;
+    }
+  } else {
+    btn.innerHTML=`${m.attaque} <small>${m.desc}</small>`;
+  }
+  btn.onclick=()=>{ if(phase==='menu') attaqueMembre(m); };
+  actionsEl.appendChild(btn);
+}
+
+// ---------- Fins ----------
+async function victoire(){
+  phase='fin';
+  panneau.style.display='none';
+  log("Le drop final résonne... Les paupières de Somnul retombent...");
+  const t0=performance.now()/1000;
+  sonSomnul('baille');
+  animer((now)=>{
+    const e=Math.min(1,(now-t0)/6);
+    somnul.position.y=0.5-e*5;
+    teteS.rotation.x=0.1+e*0.7;
+    yeux.forEach(o=>o.material.emissiveIntensity=1.4*(1-e));
+    lumSomnul.intensity=1.8*(1-e*0.7);
+    return e>=1;
+  });
+  await dodo(6200);
+  document.getElementById('fin-titre').textContent="ZURRHBHOOR";
+  document.getElementById('fin-texte').innerHTML=
+    "Somnul retourne au sommeil cosmique, bercé par le fuzz.<br>Le groupe a accompli le rite. L'album peut sortir.<br><br>SLOTH TEMPLE — 199X";
+  document.getElementById('ecran-fin').style.display='flex';
+}
+async function defaite(){
+  phase='fin';
+  panneau.style.display='none';
+  log("Le groupe entier se dissout dans la torpeur...");
+  await dodo(2500);
+  document.getElementById('fin-titre').textContent="ULVAHN";
+  document.getElementById('fin-texte').innerHTML=
+    "L'érosion du moi est complète. Le groupe dort, à jamais.<br>Somnul veille sur leurs rêves noirs. Draa vhul.<br><br>RÉESSAIE — LE RIFF DOIT SORTIR";
+  document.getElementById('ecran-fin').style.display='flex';
+}
+document.getElementById('btn-rejouer').onclick=()=>location.reload();
+
+// ---------- Démarrage ----------
+const overlay=document.getElementById('overlay');
+function demarrer(){
+  if(phase!=='intro'||introT>0) return;
+  overlay.style.display='none';
+  initAudio();
+  introT=0.001;
+  const el=document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+}
+overlay.addEventListener('touchend',e=>{ e.preventDefault(); demarrer(); },{passive:false});
+overlay.addEventListener('click',demarrer);
+
+async function lancerCombat(){
+  await annoncer("SOMNUL S'ÉVEILLE",2000);
+  await annoncer("IL FAUT LE RENDORMIR",1800);
+  majUI();
+  nouveauTour();
+}
+
+// ---------- Boucle ----------
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
+
+  brumes.forEach(b=>{
+    b.material.opacity=0.15+Math.sin(t*0.3+b.userData.va)*0.06;
+  });
+
+  // flammes des braseros qui dansent
+  flammes.forEach(f=>{
+    const v=Math.sin(t*7+f.seed)*0.5+Math.sin(t*13+f.seed*2)*0.5;
+    f.fl1.scale.set(1+v*0.12, 1+v*0.2, 1+v*0.12);
+    f.fl2.scale.set(1+v*0.18, 1+v*0.28, 1+v*0.18);
+    f.fl1.rotation.y+=dt*1.5;
+    f.lum.intensity=1.5+v*0.4;
+  });
+
+  if(phase==='intro' && introT>0){
+    introT+=dt;
+    const p=Math.min(1,introT/5);
+    const ease=p*p*(3-2*p);
+    somnul.position.y=-16+ease*16.5;
+    camShake=(1-p)*0.3;
+    sonOK=true;
+    if(p>=1){ phase='attente'; lancerCombat(); }
+  }
+
+  if(somnul.position.y>-10 && phase!=='fin'){
+    const souffle=1+Math.sin(t*0.5)*0.02;
+    corps.scale.set(souffle,1.25*souffle,0.9*souffle);
+    somnul.rotation.y=Math.sin(t*0.15)*0.04;
+  }
+
+  MEMBRES.forEach((m,i)=>{
+    if(!m.mesh) return;
+    if(m.pv<=0){
+      m.mesh.rotation.x+=(-Math.PI/2-m.mesh.rotation.x)*Math.min(1,dt*2);
+    } else if(m.dort){
+      m.mesh.userData.tete.rotation.x+=(0.5-m.mesh.userData.tete.rotation.x)*Math.min(1,dt*2);
+    } else {
+      m.mesh.rotation.x*=(1-dt*3);
+      m.mesh.userData.tete.rotation.z=Math.sin(t*1.2+i)*0.06;
+      m.mesh.position.y=Math.sin(t*1.2+i)*0.02;
+    }
+  });
+
+  const now=performance.now()/1000;
+  for(let i=anims.length-1;i>=0;i--){ if(anims[i](now)) anims.splice(i,1); }
+
+  camShake*=(1-dt*3);
+  camera.position.x=camBase.x+Math.sin(t*0.18)*0.7+(Math.random()-0.5)*camShake;
+  camera.position.y=camBase.y+Math.sin(t*0.13)*0.3+(Math.random()-0.5)*camShake;
+  camera.position.z=camBase.z+(Math.random()-0.5)*camShake;
+  camera.lookAt(0,4.5,0);
+
+  renderer.render(scene,camera);
+}
+let sonOK=false;
+animate();
+</script>
+</body>
+</html>
