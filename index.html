@@ -5,6 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SLOTH TEMPLE vs SOMNUL</title>
 <style>
+  #splash {
+  position:fixed; inset:0; z-index:200;
+  background:#000;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  cursor:pointer;
+}
+#splash img { pointer-events: none;
+  width:100%; height:100%;
+  object-fit:cover; opacity:0.85;
+}
+#splash-texte { pointer-events: none;
+  position:absolute; bottom:8%;
+  font-family:'Courier New',monospace;
+  color:#ccc; font-size:clamp(12px,2.5vw,18px);
+  letter-spacing:6px;
+  animation: clignoter 1.4s infinite;
+}
+@keyframes clignoter {
+  0%,100%{opacity:1} 50%{opacity:0}
+}
   html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden;
     font-family:'Courier New', monospace; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
   #game-canvas { width:100vw; height:100vh; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
@@ -63,7 +84,7 @@
     animation:monte 1.2s ease-out forwards; }
   @keyframes monte { 0%{transform:translateY(0);opacity:1;} 100%{transform:translateY(-50px);opacity:0;} }
 
-  #overlay { position:fixed; inset:0; z-index:20; background:#020503;
+ #overlay { position:fixed; inset:0; z-index:20; pointer-events:none; background:#020503;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     color:#9fd8a8; text-align:center; cursor:pointer; padding:0 16px; box-sizing:border-box; }
     #logo-accueil {
@@ -88,6 +109,8 @@
 </head>
 <body>
 
+<audio id="musique-intro" src="intro.mp3" loop preload="auto"></audio>
+<audio id="musique-combat" src="combat.mp3" loop preload="auto"></audio>
 <canvas id="game-canvas"></canvas>
 <div id="crt"></div>
 <div id="flash"></div>
@@ -110,6 +133,10 @@
 
 <div id="journal"></div>
 
+<div id="splash">
+  <img src="slothsleep.png" alt="Somnul">
+  <div id="splash-texte">TOUCHE POUR ENTRER</div>
+</div>
 <div id="overlay">
 <img id="logo-accueil" src="logo.png" alt="SLOTH TEMPLE">
   <h2>COMBAT RITUEL EN TOUR PAR TOUR — 199X</h2>
@@ -957,22 +984,24 @@ document.getElementById('btn-rejouer').onclick=()=>location.reload();
 
 // ---------- Démarrage ----------
 const overlay=document.getElementById('overlay');
+
+function ouvrirMenu(){
+  document.getElementById('splash').style.display='none';
+  document.getElementById('overlay').style.pointerEvents='auto';
+  document.getElementById('musique-intro').play().catch(()=>{});
+}
+document.getElementById('splash').addEventListener('click', ouvrirMenu);
+overlay.addEventListener('click', demarrer);
+overlay.addEventListener('touchend', e=>{ e.preventDefault(); demarrer(); }, {passive:false});
 function demarrer(){
   if(phase!=='intro'||introT>0) return;
   overlay.style.display='none';
+  document.getElementById('musique-intro').pause();
+  document.getElementById('musique-intro').currentTime=0;
   initAudio();
   introT=0.001;
   const el=document.documentElement;
   if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
-}
-overlay.addEventListener('touchend',e=>{ e.preventDefault(); demarrer(); },{passive:false});
-overlay.addEventListener('click',demarrer);
-
-async function lancerCombat(){
-  await annoncer("SOMNUL S'ÉVEILLE",2000);
-  await annoncer("IL FAUT LE RENDORMIR",1800);
-  majUI();
-  nouveauTour();
 }
 
 // ---------- Boucle ----------
@@ -1034,6 +1063,13 @@ function animate(){
   camera.lookAt(0,4.5,0);
 
   renderer.render(scene,camera);
+}
+async function lancerCombat(){
+  document.getElementById('musique-combat').play().catch(()=>{});
+  await annoncer("SOMNUL S'ÉVEILLE",2000);
+  await annoncer("IL FAUT LE RENDORMIR",1800);
+  majUI();
+  nouveauTour();
 }
 let sonOK=false;
 animate();
