@@ -162,13 +162,17 @@ let somnulAffaibli=false;
 
 const MEMBRES=[
   { id:'polak',   nom:'POLAK',   role:'CHANT / GUITARE', pv:100, pvMax:100, dort:false,
-    attaque:'GUITARE FUZZ', desc:'gros dégâts', couleurCheveux:0x2a1c12, peau:0xc89878, haut:0x17171b },
+    attaque:'GUITARE FUZZ', desc:'gros dégâts', couleurCheveux:0xc8a040, peau:0xd8a888, haut:0x141414, bas:0x141414,
+    echelle:1.15, cheveuxLongs:true, barbe:'courte', tatouageBrasD:true },
   { id:'steve',   nom:'STEVE',   role:'GUITARE',         pv:100, pvMax:100, dort:false,
-    attaque:'ATTAQUE RIFFLORD', desc:'très gros dégâts + charge le RIFF', couleurCheveux:0x141210, peau:0xb89070, haut:0x1c1418 },
+    attaque:'ATTAQUE RIFFLORD', desc:'très gros dégâts + charge le RIFF', couleurCheveux:0xaa4a28, peau:0xc89878, haut:0x141414, bas:0x3a3a2a,
+    echelle:0.92, cheveuxLongs:false, barbe:'longue', tatouageBrasG:true },
   { id:'clem',    nom:'CLEM',    role:'BATTERIE',        pv:100, pvMax:100, dort:false,
-    attaque:'KALIMBA', desc:'soigne le groupe + peut endormir Somnul', couleurCheveux:0x4a3018, peau:0xd0a888, haut:0x14181c },
+    attaque:'KALIMBA', desc:'soigne le groupe + peut endormir Somnul', couleurCheveux:0xc88840, peau:0xd8b090, haut:null, bas:0x2a2a2a,
+    echelle:0.85, cheveuxLongs:false, barbe:'courte', lunettes:true, casquette:true, torseNu:true, short:true },
   { id:'quentin', nom:'QUENTIN', role:'BASSE',           pv:100, pvMax:100, dort:false,
-    attaque:'BASS FUZZ', desc:'ULTI — riff à 100%', couleurCheveux:0x1a1a1a, peau:0xc09878, haut:0x181420 },
+    attaque:'BASS FUZZ', desc:'ULTI — riff à 100%', couleurCheveux:0x2a1810, peau:0xc09878, haut:0x141414, bas:0x22221c,
+    echelle:1.0, cheveuxLongs:false, moustache:true, casquette:true, tatouagePartout:true },
 ];
 
 // ---------- Renderer ----------
@@ -364,33 +368,87 @@ scene.add(somnul);
 function makeMusicien(cfg){
   const g=new THREE.Group();
   const matPeau=matCol(cfg.peau), matChev=matCol(cfg.couleurCheveux);
-  const matHaut=matCol(cfg.haut), matBas=matCol(0x22221c), matBotte=matCol(0x14110e);
+  const matHaut=cfg.haut?matCol(cfg.haut):matPeau;
+  const matBas=matCol(cfg.bas||0x22221c), matBotte=matCol(0x14110e);
+  const matTattoo=matCol(0x3a5a6a);
 
   const buste=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.27,0.5,8),matHaut);
   buste.position.y=1.3; buste.scale.z=0.75; g.add(buste);
   const ventre=new THREE.Mesh(new THREE.SphereGeometry(0.29,8,6),matHaut);
   ventre.position.y=1.0; ventre.scale.set(1,0.85,0.78); g.add(ventre);
+  if(cfg.short){
+  const hanche=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.22,0.25,8),matCol(0x111111));
+  hanche.position.y=0.78; g.add(hanche);
+}
+
+  if(cfg.tatouagePartout){
+    for(let i=0;i<5;i++){
+      const tat=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,0.02),matTattoo);
+      tat.position.set((Math.random()-0.5)*0.4,0.85+Math.random()*0.5,0.2);
+      g.add(tat);
+    }
+  }
 
   const tete=new THREE.Group();
   const crane=new THREE.Mesh(new THREE.SphereGeometry(0.21,9,7),matPeau);
   crane.scale.set(1,1.08,0.95); tete.add(crane);
-  const tignasse=new THREE.Mesh(new THREE.SphereGeometry(0.23,8,6,0,Math.PI*2,0,Math.PI*0.55),matChev);
-  tignasse.position.y=0.04; tete.add(tignasse);
-  const rideau=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.5,0.1),matChev);
-  rideau.position.set(0,-0.15,-0.16); tete.add(rideau);
-  const barbe=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.16,0.08),matChev);
-  barbe.position.set(0,-0.18,0.14); tete.add(barbe);
+
+  if(cfg.cheveuxLongs){
+    const tignasse=new THREE.Mesh(new THREE.SphereGeometry(0.24,8,6,0,Math.PI*2,0,Math.PI*0.6),matChev);
+    tignasse.position.y=0.05; tete.add(tignasse);
+    const longueur=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.12,0.55,8),matChev);
+    longueur.position.set(0,-0.32,-0.08); tete.add(longueur);
+  } else {
+    const tignasse=new THREE.Mesh(new THREE.SphereGeometry(0.23,8,6,0,Math.PI*2,0,Math.PI*0.5),matChev);
+    tignasse.position.y=0.03; tete.add(tignasse);
+  }
+
+  if(cfg.casquette){
+    const casq=new THREE.Mesh(new THREE.SphereGeometry(0.23,8,6,0,Math.PI*2,0,Math.PI*0.45),matCol(0x101010));
+    casq.position.y=0.07; tete.add(casq);
+    const visiere=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.02,8,1,false,0,Math.PI),matCol(0x101010));
+    visiere.rotation.x=Math.PI/2; visiere.position.set(0,0.0,0.18); tete.add(visiere);
+  }
+
+  if(cfg.lunettes){
+    [-1,1].forEach(s=>{
+      const verre=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.02,8),matCol(0x1a2a2a));
+      verre.rotation.x=Math.PI/2; verre.position.set(s*0.1,0.02,0.19); tete.add(verre);
+    });
+  }
+
+  if(cfg.moustache){
+    const moust=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.06,0.06),matChev);
+    moust.position.set(0,-0.08,0.18); tete.add(moust);
+  } else if(cfg.barbe==='longue'){
+    const barbe=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.32,0.1),matChev);
+    barbe.position.set(0,-0.28,0.13); tete.add(barbe);
+  } else if(cfg.barbe==='courte'){
+    const barbe=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.15,0.07),matChev);
+    barbe.position.set(0,-0.16,0.14); tete.add(barbe);
+  }
+
   tete.position.y=1.82;
   g.add(tete); g.userData.tete=tete;
 
   function bras(side){
     const b=new THREE.Group();
-    const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.4,6),matHaut);
+    const matBrasHaut=cfg.torseNu?matPeau:matHaut;
+    const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.4,6),matBrasHaut);
     haut.position.y=-0.2; b.add(haut);
     const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,6),matPeau);
     avant.position.y=-0.58; b.add(avant);
     const poing=new THREE.Mesh(new THREE.SphereGeometry(0.075,6,5),matPeau);
     poing.position.y=-0.8; b.add(poing);
+
+    if((side===1 && cfg.tatouageBrasD) || (side===-1 && cfg.tatouageBrasG)){
+      for(let i=0;i<3;i++){
+        const tat=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.02),matTattoo);
+        tat.position.set(0.07,-0.3-i*0.18,0.04);
+        b.add(tat);
+      }
+    }
+
     b.position.set(side*0.4,1.5,0);
     g.add(b);
     return b;
@@ -398,19 +456,24 @@ function makeMusicien(cfg){
   g.userData.brasG=bras(-1);
   g.userData.brasD=bras(1);
 
-  function jambe(side){
+function jambe(side){
     const j=new THREE.Group();
-    const cuisse=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.1,0.4,6),matBas);
-    cuisse.position.y=-0.2; j.add(cuisse);
-    const tibia=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.09,0.36,6),matBas);
-    tibia.position.y=-0.58; j.add(tibia);
-    const botte=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.14,0.28),matBotte);
-    botte.position.set(0,-0.8,0.04); j.add(botte);
+    const matJambeHaut=cfg.short?matCol(0x111111):(cfg.torseNu?matPeau:matBas);
+   const cuisse=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.115,cfg.short?0.28:0.4,6),matJambeHaut);
+cuisse.position.y=cfg.short?0.14:-0.2; j.add(cuisse);
+const tibiaHaut=cfg.short?new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.095,0.22,6),matPeau):null;
+if(tibiaHaut){ tibiaHaut.position.y=-0.12; j.add(tibiaHaut); }
+const tibia=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.09,cfg.short?0.3:0.36,6),matBas);
+tibia.position.y=cfg.short?-0.38:-0.58; j.add(tibia);
+const botte=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.14,0.28),matBotte);
+botte.position.set(0,cfg.short?-0.6:-0.8,0.04); j.add(botte);
     j.position.set(side*0.16,0.8,0);
     g.add(j);
     return j;
   }
   jambe(-1); jambe(1);
+
+  g.scale.set(cfg.echelle||1, cfg.echelle||1, cfg.echelle||1);
   return g;
 }
 
@@ -422,6 +485,20 @@ function makeGuitare(couleur, longueurManche=0.85){
   manche.position.y=0.25+longueurManche/2; g.add(manche);
   const tt=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.16,0.05),matCol(0x14100c));
   tt.position.y=0.25+longueurManche+0.07; g.add(tt);
+  return g;
+}
+function makePiedMicro(){
+  const g=new THREE.Group();
+  const pied=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.03,10),matCol(0x1a1a1a));
+  pied.position.y=0.015; g.add(pied);
+ const tige=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.025,1.5,6),matCol(0x2a2a2a));
+tige.position.y=0.77; g.add(tige);
+const bras=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.35,6),matCol(0x2a2a2a));
+bras.position.set(0,1.5,0.12); bras.rotation.x=Math.PI/2.5; g.add(bras);
+const micro=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.18,8),matCol(0x111111));
+micro.position.set(0,1.63,0.28); micro.rotation.x=Math.PI/2.5; g.add(micro);
+const grille=new THREE.Mesh(new THREE.SphereGeometry(0.045,8,6),matCol(0x444444));
+grille.position.set(0,1.68,0.34); g.add(grille);
   return g;
 }
 function makeAmplMarshall(){
@@ -448,6 +525,28 @@ function makeAmplOrange(){
   head.position.y=1.28; g.add(head);
   return g;
 }
+function makeAmpliAmpeg(){
+  const g=new THREE.Group();
+  // Cab 6x10
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.3,0.6),matCol(0x0a0a0a));
+  cab.position.y=0.65; g.add(cab);
+  for(let row=0;row<2;row++){
+    for(let col=0;col<3;col++){
+      const hp=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.08,10),matCol(0x3a3a3a));
+      hp.rotation.x=Math.PI/2;
+      hp.position.set(-0.42+col*0.42, 0.95-row*0.5, 0.32);
+      g.add(hp);
+    }
+  }
+  // Tête ampli SVT
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.4,0.45),matCol(0x0a0a0a));
+  head.position.y=1.5; g.add(head);
+  const facade=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.15,0.05),matCol(0x1a1a1a));
+  facade.position.set(0,1.55,0.24); g.add(facade);
+  const logo=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,0.05),matCol(0x3a6aaa));
+  logo.position.set(0,1.68,0.24); g.add(logo);
+  return g;
+}
 function makeBatterie(){
   const g=new THREE.Group();
   const matFut=matCol(0x2a4a34), matPeauF=matCol(0xd8d2c0), matMetal=matCol(0x8a8a92);
@@ -467,10 +566,10 @@ function makeBatterie(){
 }
 
 const POSITIONS=[
-  { x:-2.5, z:9.5 },  // polak
-  { x: 2, z:10.0 }, // steve
-  { x: 0,   z:11.0 }, // clem
-  { x:-1.2, z:10.5 }, // quentin
+  { x:-4.5, z:9.5 },   // polak — gauche
+  { x: 4.5, z:9.5 },   // steve — droite
+  { x: 0,   z:11.5 },  // clem — centre, derrière la batterie
+  { x: 0,   z:9.0 },   // quentin — centre, devant clem
 ];
 MEMBRES.forEach((m,i)=>{
   const p=makeMusicien(m);
@@ -479,35 +578,45 @@ MEMBRES.forEach((m,i)=>{
   scene.add(p);
   m.mesh=p; m.basePos={...POSITIONS[i]};
 
- if(m.id==='polak'){
+if(m.id==='polak'){
     const gtr=makeGuitare(0x6a1818);
     gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
     p.add(gtr);
     const ampli=makeAmplMarshall();
-    ampli.position.set(-1.8,0,0.5); ampli.rotation.y=0.3;
-    scene.add(ampli);
     ampli.position.set(POSITIONS[0].x-1.8, 0, POSITIONS[0].z+0.5);
+    ampli.rotation.y=Math.PI;
+    scene.add(ampli);
+     const pied=makePiedMicro();
+    pied.position.set(POSITIONS[0].x, 0, POSITIONS[0].z-0.7);
+    scene.add(pied);
   } else if(m.id==='steve'){
     const gtr=makeGuitare(0x18304a);
     gtr.position.set(0.08,1.0,0.3); gtr.rotation.z=-0.5;
     p.add(gtr);
     const ampli=makeAmplOrange();
     ampli.position.set(POSITIONS[1].x+1.8, 0, POSITIONS[1].z+0.5);
-    ampli.rotation.y=-0.3;
+    ampli.rotation.y=Math.PI;
     scene.add(ampli);
   } else if(m.id==='quentin'){
     const bass=makeGuitare(0x101014,1.1);
     bass.position.set(0.08,0.95,0.3); bass.rotation.z=-0.55;
     p.add(bass);
-  } else if(m.id==='clem'){
+    const ampli=makeAmpliAmpeg();
+    ampli.position.set(POSITIONS[3].x+2.2, 0, POSITIONS[3].z+0.8);
+    ampli.rotation.y=Math.PI;
+    scene.add(ampli);
+} else if(m.id==='clem'){
     const drums=makeBatterie();
-    drums.position.set(0,0,-1.1);
+    drums.position.set(0,0,0.9);
+    drums.rotation.y=Math.PI;
     p.add(drums);
   }
 });
 
 // ---------- Caméra ----------
-const camBase={ x:7.5, y:4.2, z:17 };
+
+// ---------- Caméra ----------
+const camBase={ x:7.5, y:4.2, z:20 };
 let camShake=0;
 camera.position.set(camBase.x,camBase.y,camBase.z);
 
