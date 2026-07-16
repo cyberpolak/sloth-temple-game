@@ -1373,17 +1373,17 @@ function resolveCollisions(dt) {
 
 function tryJump() {
   const p = playerState;
-  if (phase !== 'play' || narrActive || attackTimer > 0 || templeSeq) return;
+  if (phase !== 'play' || narrActive || templeSeq) return;
   if (p.onGround) {
     p.vy = JUMP_VS[0];
     p.onGround = false;
     p.jumps = 1;
-    p.anim = 'jump';
+    if (attackTimer <= 0) p.anim = 'jump';
     spawnParticles(p.x + PW * 0.6, p.y + PH, COL.claw, 4);
   } else if (p.jumps < MAX_JUMPS) {
     p.vy = JUMP_VS[p.jumps] || JUMP_VS[JUMP_VS.length - 1];
     p.jumps++;
-    p.anim = 'air';
+    if (attackTimer <= 0) p.anim = 'air';
     spawnParticles(p.x + PW * 0.6, p.y + PH * 0.5, COL.glow, 4 + p.jumps);
   }
 }
