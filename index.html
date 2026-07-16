@@ -2,15 +2,10 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>SLOTH TEMPLE</title>
+<link rel="stylesheet" href="css/common.css">
 <style>
-  html,body { margin:0; padding:0; background:#020503;
-    font-family:'Courier New',monospace; color:#9fd8a8;
-    height:100%; overflow:hidden; }
-  #crt { pointer-events:none; position:fixed; inset:0; z-index:5;
-    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0.2) 0px,
-    rgba(0,0,0,0.2) 1px, transparent 2px, transparent 4px); }
   #splash { position:fixed; inset:0; z-index:200; background:#000;
     display:flex; flex-direction:column;
     align-items:center; justify-content:center; cursor:pointer; }
@@ -22,84 +17,74 @@
   @keyframes clignoter { 0%,100%{opacity:1} 50%{opacity:0} }
   #menu { position:fixed; inset:0; z-index:10; display:none;
     flex-direction:column; align-items:center;
-    justify-content:center; padding:20px; box-sizing:border-box;
+    justify-content:flex-start;
+    overflow-x:hidden; overflow-y:auto;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    padding:max(12px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+    box-sizing:border-box;
     background:radial-gradient(ellipse at 50% 60%, #0a1f10 0%, #020503 70%); }
-  #logo { width:clamp(220px,55%,420px); margin-bottom:32px;
-    filter:drop-shadow(0 0 24px rgba(80,60,20,0.8)); }
-  #sous-titre { font-size:clamp(9px,2vw,12px); letter-spacing:5px;
-    color:#4a6a50; margin-bottom:48px; }
-  #niveaux { display:flex; flex-direction:column; gap:12px; width:min(380px,90vw); }
+  #logo { display:block;
+    width:min(72vw, 320px);
+    max-height:clamp(72px, 18vh, 160px);
+    height:auto; object-fit:contain;
+    margin-bottom:clamp(8px, 2vh, 20px);
+    filter:drop-shadow(0 0 24px rgba(80,60,20,0.8)); flex-shrink:0; }
+  #sous-titre { font-size:clamp(8px, 2vw, 12px); letter-spacing:clamp(2px, 1vw, 5px);
+    color:#4a6a50; margin-bottom:clamp(12px, 2.5vh, 24px); flex-shrink:0; text-align:center; }
+  #niveaux { display:flex; flex-direction:column; gap:10px; width:min(380px, 92vw); flex-shrink:0; }
   .niveau-btn { background:rgba(10,24,14,0.8); border:1px solid #2a4a34;
     color:#cfe8cf; font-family:'Courier New',monospace;
-    font-size:clamp(11px,2.5vw,14px); letter-spacing:2px;
-    padding:16px 20px; cursor:pointer; text-align:left;
-    display:flex; justify-content:space-between; align-items:center; }
-  .niveau-btn:hover { border-color:#bfffc8; box-shadow:0 0 14px rgba(120,255,140,0.25); }
-  .niveau-btn:active { background:rgba(30,70,40,0.8); }
+    font-size:clamp(10px,2.5vw,14px); letter-spacing:1px;
+    padding:clamp(10px, 2.5vw, 16px) clamp(12px, 3vw, 20px); cursor:pointer; text-align:left;
+    display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+  .niveau-btn:hover:not(:disabled) { border-color:#bfffc8; box-shadow:0 0 14px rgba(120,255,140,0.25); }
+  .niveau-btn:active:not(:disabled) { background:rgba(30,70,40,0.8); }
+  .niveau-btn:disabled { opacity:0.4; cursor:not-allowed; }
   .niveau-btn .num { color:#4a6a50; font-size:10px; letter-spacing:3px; }
   .niveau-btn .titre { flex:1; padding:0 16px; }
-  .niveau-btn .statut { font-size:9px; color:#3a5a40; letter-spacing:2px; }
-  #footer { margin-top:40px; font-size:9px; letter-spacing:3px; color:#2a3a2a; }
+  .niveau-btn .statut { font-size:9px; color:#3a5a40; letter-spacing:2px; white-space:nowrap; }
+  .niveau-btn.debloque .statut { color:#6aaa70; }
+  .niveau-btn.termine .statut { color:#8a9a50; }
+  #menu-actions { display:flex; gap:12px; margin-top:clamp(16px, 3vh, 28px); flex-wrap:wrap; justify-content:center; flex-shrink:0; }
+  .menu-action { background:rgba(10,24,14,0.6); border:1px solid #2a4a34; color:#7a9a80;
+    font-family:'Courier New',monospace; font-size:11px; letter-spacing:2px;
+    padding:10px 18px; cursor:pointer; }
+  .menu-action:hover { border-color:#5a7a60; color:#9fd8a8; }
+  #footer { margin-top:clamp(12px, 2vh, 24px); padding-bottom:8px; font-size:9px; letter-spacing:3px; color:#2a3a2a; flex-shrink:0; text-align:center; }
+
+  @media (max-height: 520px), (max-width: 380px) {
+    #logo { width:min(60vw, 180px); max-height:14vh; margin-bottom:6px; }
+    #sous-titre { margin-bottom:10px; letter-spacing:2px; }
+    #niveaux { gap:8px; }
+    .niveau-btn { padding:10px 12px; }
+    .niveau-btn .titre { padding:0 8px; }
+  }
 </style>
 </head>
 <body>
-<audio id="musique-intro" src="intro.mp3" loop preload="auto"></audio>
+<audio id="musique-intro" src="assets/audio/intro.mp3" loop preload="auto"></audio>
 <div id="crt"></div>
 
 <div id="splash">
-  <img src="slothsleep.png" alt="Somnul">
+  <img src="assets/images/slothsleep.png" alt="Somnul">
   <div id="splash-texte">TOUCHE POUR ENTRER</div>
 </div>
 
 <div id="menu">
-  <img id="logo" src="logo.png" alt="SLOTH TEMPLE">
+  <img id="logo" src="assets/images/logo.png" alt="SLOTH TEMPLE">
   <div id="sous-titre">CHOISIR LE RITE — 199X</div>
-  <div id="niveaux">
-    <button class="niveau-btn" onclick="lancerNiveau('niveau1.html')">
-      <span class="num">01</span>
-      <span class="titre">CREATION OF A SLOTH</span>
-      <span class="statut">JOUER →</span>
-    </button>
-    <button class="niveau-btn" onclick="lancerNiveau('niveau2.html')">
-      <span class="num">02</span>
-      <span class="titre">THE TEMPLE</span>
-      <span class="statut">BIENTÔT</span>
-    </button>
-    <button class="niveau-btn" onclick="lancerNiveau('niveau3.html')">
-      <span class="num">03</span>
-      <span class="titre">SHA'UR'NA</span>
-      <span class="statut">BIENTÔT</span>
-    </button>
-    <button class="niveau-btn" onclick="lancerNiveau('niveau4.html')">
-      <span class="num">04</span>
-      <span class="titre">SOMNUL RISE</span>
-      <span class="statut">BIENTÔT</span>
-    </button>
-    <button class="niveau-btn" onclick="lancerNiveau('niveau5.html')">
-      <span class="num">05</span>
-      <span class="titre">THE GREAT OLD SLOTH</span>
-      <span class="statut">BIENTÔT</span>
-    </button>
+  <div id="niveaux"></div>
+  <div id="menu-actions">
+    <button class="menu-action" id="btn-accueil">RETOUR À L'ACCUEIL</button>
   </div>
   <div id="footer">SLOTH TEMPLE — TOUS LES RIFFS RÉSERVÉS</div>
 </div>
 
-<script>
-const splash = document.getElementById('splash');
-const menu = document.getElementById('menu');
-const musique = document.getElementById('musique-intro');
+<div id="game-shell">
+  <iframe id="game-frame" title="Sloth Temple — niveau en cours" allow="autoplay"></iframe>
+</div>
 
-splash.addEventListener('click', ()=>{
-  musique.play().catch(()=>{});
-  splash.style.display='none';
-  menu.style.display='flex';
-});
-
-function lancerNiveau(url){
-  musique.pause();
-  musique.currentTime=0;
-  window.location.href=url;
-}
-</script>
+<script src="js/common.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

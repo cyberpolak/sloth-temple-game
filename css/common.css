@@ -1,0 +1,107 @@
+/* SLOTH TEMPLE — styles partagés */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #020503;
+  font-family: 'Courier New', monospace;
+  color: #9fd8a8;
+  height: 100%;
+  overflow: hidden;
+}
+
+#crt {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.2) 0px,
+    rgba(0, 0, 0, 0.2) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+#game-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  background: #000;
+}
+
+#game-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+#btn-fullscreen {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 300;
+  background: rgba(4, 12, 7, 0.75);
+  border: 1px solid #2a4a34;
+  color: #8ab890;
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s, border-color 0.2s, box-shadow 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#btn-fullscreen:hover,
+#btn-fullscreen.actif {
+  opacity: 1;
+  border-color: #bfffc8;
+  box-shadow: 0 0 10px rgba(120, 255, 140, 0.25);
+}
+
+#btn-dev-skip {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 52px;
+  z-index: 100;
+  background: rgba(40, 20, 10, 0.75);
+  border: 1px dashed #6a4a30;
+  color: #aa8a60;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 8px 10px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s, border-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#btn-dev-skip:hover {
+  opacity: 1;
+  border-color: #c8a040;
+  color: #e8c880;
+}
+
+/* Plein écran mobile : rotation paysage forcée en portrait */
+html.fs-landscape body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
+  overflow: hidden;
+}
+
+html.fs-landscape #btn-fullscreen {
+  transform: rotate(-90deg);
+  top: max(10px, env(safe-area-inset-right));
+  right: auto;
+  left: max(10px, env(safe-area-inset-top));
+}
