@@ -46,7 +46,7 @@ function rafraichirNiveaux() {
   NIVEAUX.forEach((n) => {
     const debloque = progress.unlocked.includes(n.num);
     const termine = progress.completed.includes(n.num);
-    const existe = n.num <= 2;
+    const existe = n.num <= 3;
     const btn = document.createElement('button');
     btn.className = 'niveau-btn' + (debloque ? ' debloque' : '') + (termine ? ' termine' : '');
     btn.disabled = !debloque || !existe;

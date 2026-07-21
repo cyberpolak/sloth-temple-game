@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SLOTH TEMPLE - SHA'UR'NA</title>
+<link rel="stylesheet" href="../css/common.css">
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden;
+    font-family: 'Courier New', monospace; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  #game-wrap {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #020503;
+  }
+  #game-canvas {
+    display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+    box-shadow: 0 0 40px rgba(40, 120, 60, 0.25);
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed; z-index: 12; pointer-events: none;
+    left: 50%; transform: translateX(-50%);
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(420px, 92vw);
+    display: flex; gap: 10px; align-items: flex-end; justify-content: space-between;
+  }
+  .hud-panel {
+    background: rgba(4, 14, 8, 0.82); border: 1px solid #2a4a34;
+    padding: 6px 10px; min-width: 72px;
+    box-shadow: 0 0 12px rgba(74, 255, 138, 0.08);
+  }
+  .hud-label { color: #5a7a60; font-size: 8px; letter-spacing: 2px; margin-bottom: 3px; }
+  .hud-value { color: #bfffc8; font-size: 14px; letter-spacing: 1px; font-weight: bold; }
+  #hud-hp { flex: 1; }
+  #hud-hp-bar { height: 8px; background: #0a140c; border: 1px solid #3a5a42; margin-top: 4px; }
+  #hud-hp-fill { height: 100%; width: 100%; background: linear-gradient(to right, #3a8a4e, #6affb0); transition: width 0.1s; }
+  #hud-hp-fill.low { background: linear-gradient(to right, #8a3a3a, #ff6a4a); }
+  #hud-ammo.low {
+    color: #ffb84a; font-size: 16px;
+    text-shadow: 0 0 8px rgba(255, 170, 40, 0.65);
+  }
+  #hud-ammo.empty {
+    color: #ff6a4a; font-size: 17px; font-weight: 900;
+    text-shadow: 0 0 10px rgba(255, 80, 50, 0.75);
+    animation: ammo-pulse 0.85s ease-in-out infinite;
+  }
+  .hud-panel.ammo-critical {
+    border-color: #8a5a28;
+    box-shadow: 0 0 14px rgba(255, 160, 40, 0.28);
+  }
+  .hud-panel.ammo-critical.empty {
+    border-color: #8a3a30;
+    box-shadow: 0 0 16px rgba(255, 70, 50, 0.4);
+  }
+  .hud-panel.ammo-critical.empty .hud-label { color: #c87860; }
+  @keyframes ammo-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.72; transform: scale(1.08); }
+  }
+  #hud-prompt {
+    position: fixed; z-index: 12; pointer-events: none;
+    left: 50%; top: 58%; transform: translate(-50%, -50%);
+    color: #bfffc8; font-size: clamp(10px, 2.4vw, 13px); letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(74, 255, 138, 0.5), 1px 1px 0 #000;
+    opacity: 0; transition: opacity 0.2s; text-align: center;
+    background: rgba(4, 14, 8, 0.7); border: 1px solid #3a6a48; padding: 8px 14px;
+  }
+  #boss-bar {
+    display: none; position: fixed; z-index: 12; pointer-events: none;
+    top: max(48px, calc(env(safe-area-inset-top) + 40px));
+    left: 50%; transform: translateX(-50%); width: min(360px, 80vw);
+  }
+  #boss-name { color: #c8a040; font-size: 9px; letter-spacing: 3px; text-align: center; margin-bottom: 4px; }
+  #boss-track { height: 7px; background: #140808; border: 1px solid #6a3a30; }
+  #boss-fill { height: 100%; width: 100%; background: linear-gradient(to right, #8a2a2a, #ff6a4a); transition: width 0.12s; }
+
+  #annonce {
+    position: fixed; top: 22%; width: 100%; text-align: center; z-index: 14; pointer-events: none;
+    color: #e8f0e0; font-size: clamp(14px, 3.5vw, 22px); letter-spacing: 4px; font-weight: bold;
+    text-shadow: 0 0 14px rgba(120, 255, 140, 0.5), 2px 2px 0 #000; opacity: 0; transition: opacity 0.3s;
+  }
+  #tip-stack {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+    z-index: 15; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none;
+    max-width: min(248px, 58vw);
+  }
+  .tip-bubble {
+    background: rgba(4, 12, 7, 0.94); border: 1px solid #3a6a48; color: #b8d8bc;
+    font-size: clamp(9px, 2.1vw, 11px); letter-spacing: 0.5px; line-height: 1.5;
+    padding: 10px 12px; border-radius: 3px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    animation: tip-in 0.28s ease-out; opacity: 1; transition: opacity 0.35s;
+  }
+  .tip-bubble.fade-out { opacity: 0; transform: translateX(6px); }
+  .tip-bubble strong {
+    display: block; color: #bfffc8; font-size: clamp(9px, 2.3vw, 11px);
+    letter-spacing: 2px; margin-bottom: 5px;
+  }
+  @keyframes tip-in {
+    from { transform: translateX(14px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  #btn-vinyl {
+    position: fixed; top: 12px; left: 12px; z-index: 50; font-size: 0; width: 36px; height: 36px;
+    opacity: 0.55; background: rgba(10, 24, 14, 0.85); border: 1px solid #3a6a48; color: #bfffc8;
+    letter-spacing: 1px; cursor: pointer;
+  }
+  #btn-vinyl::after {
+    content: 'MENU'; font-size: 9px; letter-spacing: 2px;
+    display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+    font-family: 'Courier New', monospace;
+  }
+  #btn-vinyl:hover { opacity: 1; border-color: #bfffc8; }
+
+  #intro-quote, #tutoriel, #ecran-fin {
+    position: fixed; inset: 0; z-index: 25; background: rgba(2, 5, 3, 0.94);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; box-sizing: border-box; text-align: center;
+  }
+  #intro-quote h1, #tutoriel h2, #ecran-fin h1 {
+    color: #bfffc8; font-size: clamp(16px, 4vw, 28px); letter-spacing: 6px;
+    margin: 0 0 20px; text-shadow: 0 0 16px rgba(120, 255, 140, 0.5);
+  }
+  #intro-quote p, #ecran-fin p {
+    color: #8ab890; font-size: clamp(12px, 2.8vw, 15px); letter-spacing: 1px;
+    line-height: 1.9; max-width: 420px; margin: 0 0 28px; white-space: pre-line;
+  }
+  #ecran-fin p {
+    white-space: normal;
+  }
+  #tutoriel-note { color: #5a7a60; font-size: 10px; letter-spacing: 2px; margin-top: 16px; }
+  #tutoriel-grid {
+    display: grid; grid-template-columns: auto 1fr; gap: 10px 20px;
+    text-align: left; margin-bottom: 28px; max-width: 360px; width: 100%;
+  }
+  .tut-key {
+    background: rgba(10, 24, 14, 0.9); border: 1px solid #3a6a48; color: #bfffc8;
+    font-family: 'Courier New', monospace; font-size: clamp(11px, 2.5vw, 13px); letter-spacing: 1px;
+    padding: 8px 12px; text-align: center; min-width: 72px; white-space: nowrap;
+  }
+  .tut-desc {
+    color: #9fd8a8; font-size: clamp(11px, 2.5vw, 13px); letter-spacing: 1px;
+    display: flex; align-items: center; line-height: 1.4;
+  }
+  #intro-ok, #tutoriel-ok, #fin-ok {
+    background: rgba(20, 50, 30, 0.8); border: 1px solid #3a6a48; color: #cfe8cf;
+    font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 3px;
+    padding: 12px 40px; cursor: pointer;
+  }
+  #intro-ok:hover, #tutoriel-ok:hover, #fin-ok:hover {
+    border-color: #bfffc8; box-shadow: 0 0 12px rgba(120, 255, 140, 0.25);
+  }
+
+  /* Touch UI — glassmorphism */
+  #touch-ui {
+    position: fixed; inset: 0; z-index: 20; pointer-events: none; display: none;
+  }
+  #touch-ui.visible { display: block; }
+  .touch-glass {
+    position: absolute; pointer-events: auto; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(40, 80, 55, 0.28), rgba(10, 24, 14, 0.35));
+    border: 1px solid rgba(180, 220, 190, 0.28);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.35);
+    color: rgba(200, 240, 210, 0.55);
+    font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .touch-glass.actif {
+    background: linear-gradient(145deg, rgba(80, 180, 110, 0.45), rgba(30, 80, 50, 0.5));
+    border-color: rgba(191, 255, 200, 0.75);
+    color: #bfffc8;
+    box-shadow: 0 0 18px rgba(74, 255, 138, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  #dpad {
+    position: absolute;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: 148px; height: 148px;
+  }
+  #touch-fwd { width: 48px; height: 48px; left: 50px; top: 0; border-radius: 14px; }
+  #touch-back { width: 48px; height: 48px; left: 50px; bottom: 0; border-radius: 14px; }
+  #touch-left { width: 48px; height: 48px; left: 0; top: 50px; border-radius: 14px; }
+  #touch-right { width: 48px; height: 48px; right: 0; top: 50px; border-radius: 14px; }
+  #touch-actions {
+    position: absolute;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
+    width: 130px; height: 130px;
+  }
+  #touch-fire {
+    width: 68px; height: 68px; right: 0; bottom: 0; border-radius: 50%;
+    font-size: 12px; letter-spacing: 2px; font-weight: bold;
+  }
+  #touch-action {
+    width: 54px; height: 54px; right: 72px; bottom: 58px; border-radius: 50%;
+    font-size: 9px; letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<audio id="musique-niveau" loop preload="auto">
+  <source src="../assets/audio/combat.mp3" type="audio/mpeg">
+</audio>
+
+<button id="btn-vinyl" onclick="slothGoToMenu()" type="button" aria-label="Menu"></button>
+
+<div id="game-wrap"><canvas id="game-canvas" width="320" height="200"></canvas></div>
+<div id="crt"></div>
+
+<div id="boss-bar" aria-live="polite">
+  <div id="boss-name">SHA'UR'NA</div>
+  <div id="boss-track"><div id="boss-fill"></div></div>
+</div>
+
+<div id="hud">
+  <div class="hud-panel" id="hud-hp">
+    <div class="hud-label">VITALITÉ · <span id="hud-hp-text">100</span></div>
+    <div id="hud-hp-bar"><div id="hud-hp-fill"></div></div>
+  </div>
+  <div class="hud-panel" id="hud-ammo-panel">
+    <div class="hud-label" id="hud-ammo-label">MUNITIONS</div>
+    <div class="hud-value" id="hud-ammo">24</div>
+  </div>
+  <div class="hud-panel">
+    <div class="hud-label">SCEAUX</div>
+    <div class="hud-value" id="hud-seals">0/4</div>
+  </div>
+</div>
+<div id="hud-prompt">E / ACTION - Briser le sceau</div>
+<div id="annonce"></div>
+<div id="tip-stack" aria-live="polite"></div>
+
+<div id="intro-quote">
+  <h1>SHA'UR'NA</h1>
+  <p>« Sous la pierre endormie, quatre sceaux retiennent le souffle du temple.
+Somnul revient. Ce qui fut scellé doit être repris. »</p>
+  <button id="intro-ok" type="button">ENTRER</button>
+</div>
+
+<div id="tutoriel">
+  <h2>CONTRÔLES</h2>
+  <div id="tutoriel-grid"></div>
+  <button id="tutoriel-ok" type="button">COMMENCER LE RITE</button>
+  <div id="tutoriel-note">Trois sceaux. Puis le quatrième - qui ne dormira pas.</div>
+</div>
+
+<div id="touch-ui">
+  <div id="dpad">
+    <div class="touch-glass" id="touch-fwd">▲</div>
+    <div class="touch-glass" id="touch-back">▼</div>
+    <div class="touch-glass" id="touch-left">◀</div>
+    <div class="touch-glass" id="touch-right">▶</div>
+  </div>
+  <div id="touch-actions">
+    <div class="touch-glass" id="touch-action">ACTION</div>
+    <div class="touch-glass" id="touch-fire">TIR</div>
+  </div>
+</div>
+
+<div id="ecran-fin">
+  <h1 id="fin-titre"></h1>
+  <p id="fin-texte"></p>
+  <button id="fin-ok" type="button">RETOUR AU TEMPLE</button>
+</div>
+
+<script src="../js/common.js"></script>
+<script src="./niveau3/utils.js"></script>
+<script src="./niveau3/art.js"></script>
+<script src="./niveau3/map.js"></script>
+<script src="./niveau3/audio.js"></script>
+<script src="./niveau3/raycaster.js"></script>
+<script src="./niveau3/renderer.js"></script>
+<script src="./niveau3/player.js"></script>
+<script src="./niveau3/enemy.js"></script>
+<script src="./niveau3/hud.js"></script>
+<script src="./niveau3/touch.js"></script>
+<script src="./niveau3/game.js"></script>
+</body>
+</html>

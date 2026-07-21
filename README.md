@@ -36,13 +36,21 @@ python3 -m http.server 8080
 | `Espace` sauter (triple saut en l'air) | Bouton ✕ (saut) |
 | `X` cri doom | Bouton CRR |
 
+### Niveau 3 — SHA'UR'NA (FPS raycaster)
+| Desktop | Mobile |
+|---------|--------|
+| `ZQSD` / `WASD` avancer / pas de côté | Croix (avancer / reculer / tourner) |
+| `←` `→` ou souris (clic pour verrouiller) | — |
+| `Espace` tirer | Bouton TIR |
+| `E` briser un sceau | Bouton ACTION |
+
 ## Niveaux
 
 | # | Titre | Type | Statut |
 |---|-------|------|--------|
 | 01 | CREATION OF A SLOTH | Combat tour par tour vs Somnul | Jouable |
 | 02 | THE TEMPLE | Plateforme 2D (monde des songes) | Jouable |
-| 03 | SHA'UR'NA | — | Bientôt |
+| 03 | SHA'UR'NA | FPS raycaster (temple scellé) | Jouable |
 | 04 | SOMNUL RISE | — | Bientôt |
 | 05 | THE GREAT OLD SLOTH | — | Bientôt |
 
@@ -77,14 +85,18 @@ sloth-temple-game/
 │   └── app.js              # Menu et chargement des niveaux
 ├── levels/
 │   ├── niveau1.html        # Niveau 1 — JRPG
-│   └── niveau2.html        # Niveau 2 — Plateforme
+│   ├── niveau2.html        # Niveau 2 — Plateforme
+│   ├── niveau3.html        # Niveau 3 — FPS raycaster
+│   └── niveau3/            # Modules JS du raycaster
 ├── docs/
 │   └── niveau2-cartographie.svg  # Plan visuel du niveau 2
 ├── assets/
 │   ├── audio/
 │   │   ├── intro.mp3
-│   │   ├── combat.mp3
-│   │   └── Sloth_02_V7_Master.wav   # Bande son niveau 2
+│   │   ├── combat.mp3              # Bande son temporaire niveau 3
+│   │   ├── Sloth_02_V7_Master.mp3  # Bande son niveau 2
+│   │   └── Sloth_02_V7_Master.ogg
+│   ├── niveau3/            # Art niveau 3 (procédural pour l'instant)
 │   └── images/
 │       ├── slothsleep.png
 │       ├── logo.png
