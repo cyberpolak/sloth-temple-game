@@ -5,6 +5,7 @@
   const MOVE_SPEED = 3.2;
   const STRAFE_SPEED = 2.6;
   const ROT_SPEED = 2.4;
+  const TOUCH_LOOK_MULT = 1.55;
   const MOUSE_SENS = 0.0022;
   const RADIUS = 0.22;
   const MAX_HP = 100;
@@ -222,6 +223,7 @@
     let rot = 0;
     if (input.turnLeft) rot -= 1;
     if (input.turnRight) rot += 1;
+    if (input.lookStick) rot += input.lookStick * TOUCH_LOOK_MULT;
     if (input.mouseDx) {
       rot += input.mouseDx * MOUSE_SENS / Math.max(dt, 0.001) * 0.35;
       input.mouseDx = 0;

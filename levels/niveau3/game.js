@@ -14,6 +14,7 @@
     fire: false,
     action: false,
     mouseDx: 0,
+    lookStick: 0,
   };
 
   let state = null;
@@ -603,6 +604,7 @@
     input.turnLeft = input.turnRight = false;
     input.fire = input.action = false;
     input.mouseDx = 0;
+    input.lookStick = 0;
     actionLatch = false;
     state.phase = 'play';
     ST3.Touch.setBlocked(false);

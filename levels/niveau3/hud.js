@@ -192,7 +192,8 @@
       if (els.tutorielGrid) {
         if (isTouch) {
           els.tutorielGrid.innerHTML =
-            '<div class="tut-key">CROIX</div><div class="tut-desc">Avancer / reculer / tourner</div>' +
+            '<div class="tut-key">CROIX</div><div class="tut-desc">Avancer / reculer / pas de côté</div>' +
+            '<div class="tut-key">REGARD</div><div class="tut-desc">Joystick droit pour viser</div>' +
             '<div class="tut-key">TIR</div><div class="tut-desc">Cry vert — griffe si vide</div>' +
             '<div class="tut-key">ACTION</div><div class="tut-desc">Briser un sceau (proche)</div>';
         } else {
