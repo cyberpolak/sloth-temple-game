@@ -7,7 +7,7 @@
   const ROT_SPEED = 2.4;
   const TOUCH_LOOK_MULT = 1.55;
   const MOUSE_SENS = 0.0022;
-  const RADIUS = 0.22;
+  const RADIUS = 0.36;
   const MAX_HP = 100;
   const MAX_AMMO = 60;
   const FIRE_COOLDOWN = 0.28;
@@ -23,6 +23,9 @@
   const MELEE_COOLDOWN = 0.45;
   const MELEE_HALF_CONE = 0.55; // ~63° total arc
   const MELEE_FLASH = 0.38;
+  // Must equal Engine3D.HALF_TAN = tan(FOV/2) with FOV=π/3 → ~60° HFOV.
+  // Previous 0.66 (~67°) desynced sprites from perspective walls.
+  const PLANE_LEN = Math.tan(Math.PI / 6); // ≈ 0.57735026919
 
   function create(spawn) {
     const ang = -Math.PI / 2; // face north-ish
@@ -31,8 +34,8 @@
       y: spawn.y,
       dirX: Math.cos(ang),
       dirY: Math.sin(ang),
-      planeX: Math.cos(ang + Math.PI / 2) * 0.66,
-      planeY: Math.sin(ang + Math.PI / 2) * 0.66,
+      planeX: Math.cos(ang + Math.PI / 2) * PLANE_LEN,
+      planeY: Math.sin(ang + Math.PI / 2) * PLANE_LEN,
       hp: MAX_HP,
       ammo: START_AMMO,
       fireCd: 0,
@@ -51,8 +54,8 @@
     p.angle = ST3.Utils.normAngle(ang);
     p.dirX = Math.cos(p.angle);
     p.dirY = Math.sin(p.angle);
-    p.planeX = Math.cos(p.angle + Math.PI / 2) * 0.66;
-    p.planeY = Math.sin(p.angle + Math.PI / 2) * 0.66;
+    p.planeX = Math.cos(p.angle + Math.PI / 2) * PLANE_LEN;
+    p.planeY = Math.sin(p.angle + Math.PI / 2) * PLANE_LEN;
   }
 
   function tryMove(p, nx, ny) {
@@ -87,7 +90,7 @@
    * Closest living enemy in forward cone within MELEE_RANGE.
    * Boss is an enemy — seals without HP stay on interact (E).
    */
-  function tryMeleeHit(player, enemies) {
+  function tryMeleeHit(player, enemies, bolts) {
     if (!enemies || !enemies.length) return { hits: 0, target: null };
 
     const half = MELEE_HALF_CONE;
@@ -116,7 +119,7 @@
 
     if (!best) return { hits: 0, target: null };
 
-    ST3.Enemy.damage(best, MELEE_DAMAGE);
+    ST3.Enemy.damage(best, MELEE_DAMAGE, bolts);
     return { hits: 1, target: best };
   }
 
@@ -148,7 +151,7 @@
     }
   }
 
-  function fireMelee(p, enemies) {
+  function fireMelee(p, enemies, bolts) {
     p.fireCd = MELEE_COOLDOWN;
     p.meleeFlash = MELEE_FLASH;
     p.attackFlash = 0.28;
@@ -168,7 +171,7 @@
       );
     }
 
-    const result = tryMeleeHit(p, enemies);
+    const result = tryMeleeHit(p, enemies, bolts);
     if (result.hits > 0 && result.target) {
       ST3.Audio.sfx.clawHit();
       if (ST3.Renderer && ST3.Renderer.addShake) {
@@ -263,7 +266,7 @@
       if (p.ammo > 0) {
         fireBolt(p, bolts);
       } else {
-        fireMelee(p, enemies || []);
+        fireMelee(p, enemies || [], bolts);
       }
     }
   }

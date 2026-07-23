@@ -2,26 +2,24 @@
 (function (ST3) {
   'use strict';
 
-  const MONK = {
-    hp: 40,
-    speed: 1.1,
+  /** Shared kite / shoot envelope; per-variant hp/speed/boltDmg override. */
+  const MONK_BASE = {
     keepDist: 4.2,
     shootRange: 7.5,
     fireCd: 1.95,
     boltSpeed: 5.5,
-    boltDmg: 6,
     radius: 0.28,
   };
 
-  const HOUND = {
-    hp: 28,
-    speed: 2.45,
-    meleeRange: 1.05,
-    meleeDmg: 7,
-    meleeCd: 0.85,
-    aggroRange: 9.5,
-    radius: 0.26,
+  const MONK_VARIANTS = {
+    ash: { hp: 40, speed: 1.1, boltDmg: 6 },
+    riff: { hp: 48, speed: 1.0, boltDmg: 8 },
+    smoke: { hp: 32, speed: 1.35, boltDmg: 5 },
+    somnul: { hp: 55, speed: 0.95, boltDmg: 7 },
   };
+
+  /** @deprecated alias — ash defaults (scripts / HUD may still read MONK) */
+  const MONK = Object.assign({}, MONK_BASE, MONK_VARIANTS.ash);
 
   const BOSS = {
     hp: 160,
@@ -79,7 +77,6 @@
     let dy = e.y - player.y;
     let d = Math.sqrt(dx * dx + dy * dy);
     if (d < 0.05) {
-      // Exactement dessus : pousse dans la direction opposée au regard joueur, ou est
       dx = -player.dirX || 1;
       dy = -player.dirY || 0;
       d = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -94,7 +91,6 @@
       e.x = nx;
       e.y = ny;
     } else {
-      // Glisse autour de la bulle
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2;
         const sx = player.x + Math.cos(a) * PLAYER_SAFE;
@@ -124,50 +120,82 @@
     }
   }
 
+  function pushEnemyBolt(bolts, x, y, ang, speed, damage, life, r) {
+    bolts.push({
+      x: x + Math.cos(ang) * 0.35,
+      y: y + Math.sin(ang) * 0.35,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      life: life || 2,
+      friendly: false,
+      damage: damage,
+      r: r || 0.14,
+      trailAcc: 0,
+    });
+  }
+
+  function spawnSomnulDeathRing(e, bolts) {
+    if (!bolts) return;
+    const spin = Math.random() * Math.PI * 2;
+    const dmg = Math.max(3, (e.boltDmg || MONK_VARIANTS.somnul.boltDmg) - 2);
+    for (let k = 0; k < 3; k++) {
+      const ang = spin + (k / 3) * Math.PI * 2;
+      pushEnemyBolt(bolts, e.x, e.y, ang, MONK_BASE.boltSpeed * 0.85, dmg, 1.6, 0.12);
+    }
+    if (ST3.Renderer && ST3.Renderer.spawnParticles) {
+      ST3.Renderer.spawnParticles(e.x, e.y, '#5aff9a', 10, { kind: 'mist', spread: 1.8, life: 0.45 });
+      ST3.Renderer.spawnParticles(e.x, e.y, '#7affaa', 6, { kind: 'spark', spread: 1.4, life: 0.35 });
+    }
+  }
+
+  function trySmokeBlink(e, player) {
+    // Short step toward / past player when LoS breaks (cd ~4s)
+    const ang = Math.atan2(player.y - e.y, player.x - e.x) + ST3.Utils.rand(-0.5, 0.5);
+    const step = ST3.Utils.rand(1.1, 1.7);
+    const nx = e.x + Math.cos(ang) * step;
+    const ny = e.y + Math.sin(ang) * step;
+    const r = e.radius;
+    if (!cellBlocked(nx, ny, r) && !insidePlayerSafe(nx, ny, player)) {
+      e.x = nx;
+      e.y = ny;
+      e.blinkCd = 4.0 + ST3.Utils.rand(-0.4, 0.6);
+      if (ST3.Renderer && ST3.Renderer.spawnParticles) {
+        ST3.Renderer.spawnParticles(e.x, e.y, 'corrupt', 8, { kind: 'mist', spread: 1.4, life: 0.4 });
+      }
+      return true;
+    }
+    return false;
+  }
+
   function createFromEntity(ent) {
-    if (ent.type === 'monk') {
-      return {
-        kind: 'monk',
-        x: ent.x,
-        y: ent.y,
-        hp: MONK.hp,
-        maxHp: MONK.hp,
-        alive: true,
-        fireCd: ST3.Utils.rand(0.4, 1.2),
-        meleeCd: 0,
-        radius: MONK.radius,
-        hurtFlash: 0,
-        anim: 'idle',
-        animT: ST3.Utils.rand(0, 2),
-        facing: 0,
-        attackFlash: 0,
-        moving: false,
-        lastX: ent.x,
-        lastY: ent.y,
-      };
-    }
-    if (ent.type === 'hound') {
-      return {
-        kind: 'hound',
-        x: ent.x,
-        y: ent.y,
-        hp: HOUND.hp,
-        maxHp: HOUND.hp,
-        alive: true,
-        fireCd: 0,
-        meleeCd: ST3.Utils.rand(0.2, 0.8),
-        radius: HOUND.radius,
-        hurtFlash: 0,
-        anim: 'idle',
-        animT: ST3.Utils.rand(0, 2),
-        facing: 0,
-        attackFlash: 0,
-        moving: false,
-        lastX: ent.x,
-        lastY: ent.y,
-      };
-    }
-    return null;
+    if (ent.type !== 'monk') return null;
+    const variant = ent.variant && MONK_VARIANTS[ent.variant] ? ent.variant : 'ash';
+    const stats = MONK_VARIANTS[variant];
+    return {
+      kind: 'monk',
+      variant: variant,
+      x: ent.x,
+      y: ent.y,
+      hp: stats.hp,
+      maxHp: stats.hp,
+      speed: stats.speed,
+      boltDmg: stats.boltDmg,
+      alive: true,
+      fireCd: ST3.Utils.rand(0.4, 1.2),
+      meleeCd: 0,
+      blinkCd: ST3.Utils.rand(1.5, 3.5),
+      shotCount: 0,
+      mistAcc: 0,
+      radius: MONK_BASE.radius,
+      hurtFlash: 0,
+      anim: 'idle',
+      animT: ST3.Utils.rand(0, 2),
+      facing: 0,
+      attackFlash: 0,
+      moving: false,
+      lastX: ent.x,
+      lastY: ent.y,
+    };
   }
 
   function createBoss(seal) {
@@ -216,6 +244,7 @@
     if (e.fireCd > 0) e.fireCd -= dt;
     if (e.meleeCd > 0) e.meleeCd -= dt;
     if (e.attackFlash > 0) e.attackFlash -= dt;
+    if (e.blinkCd > 0) e.blinkCd -= dt;
 
     const prevX = e.x;
     const prevY = e.y;
@@ -224,50 +253,57 @@
     e.facing = Math.atan2(player.y - e.y, player.x - e.x);
 
     if (e.kind === 'monk') {
+      const speed = e.speed || MONK.speed;
+      const boltDmg = e.boltDmg || MONK.boltDmg;
+      const variant = e.variant || 'ash';
+
       if (!los) {
-        // Idle wander slightly toward player if somewhat close
-        if (d < 10) moveToward(e, player.x, player.y, MONK.speed * 0.4, dt, player);
-      } else {
-        if (d < MONK.keepDist - 0.5) {
-          // Back away
-          moveToward(e, e.x - (player.x - e.x), e.y - (player.y - e.y), MONK.speed, dt, player);
-        } else if (d > MONK.keepDist + 0.8) {
-          moveToward(e, player.x, player.y, MONK.speed, dt, player);
+        if (d < 10) moveToward(e, player.x, player.y, speed * 0.4, dt, player);
+        // smoke: short blink step when LoS lost
+        if (variant === 'smoke' && (e.blinkCd || 0) <= 0 && d < 11) {
+          trySmokeBlink(e, player);
         }
-        if (d < MONK.shootRange && e.fireCd <= 0) {
+      } else {
+        if (d < MONK_BASE.keepDist - 0.5) {
+          moveToward(e, e.x - (player.x - e.x), e.y - (player.y - e.y), speed, dt, player);
+        } else if (d > MONK_BASE.keepDist + 0.8) {
+          moveToward(e, player.x, player.y, speed, dt, player);
+        }
+        if (d < MONK_BASE.shootRange && e.fireCd <= 0) {
           const ang = Math.atan2(player.y - e.y, player.x - e.x);
-          bolts.push({
-            x: e.x + Math.cos(ang) * 0.35,
-            y: e.y + Math.sin(ang) * 0.35,
-            vx: Math.cos(ang) * MONK.boltSpeed,
-            vy: Math.sin(ang) * MONK.boltSpeed,
-            life: 2,
-            friendly: false,
-            damage: MONK.boltDmg,
-            r: 0.14,
-            trailAcc: 0,
-          });
-          e.fireCd = MONK.fireCd + ST3.Utils.rand(-0.2, 0.3);
+          e.shotCount = (e.shotCount || 0) + 1;
+          // riff: 2-bolt fan ±0.12 every other shot
+          if (variant === 'riff' && (e.shotCount % 2) === 0) {
+            pushEnemyBolt(bolts, e.x, e.y, ang - 0.12, MONK_BASE.boltSpeed, boltDmg);
+            pushEnemyBolt(bolts, e.x, e.y, ang + 0.12, MONK_BASE.boltSpeed, boltDmg);
+          } else {
+            pushEnemyBolt(bolts, e.x, e.y, ang, MONK_BASE.boltSpeed, boltDmg);
+          }
+          e.fireCd = MONK_BASE.fireCd + ST3.Utils.rand(-0.2, 0.3);
           e.attackFlash = 0.28;
         }
       }
-    } else if (e.kind === 'hound') {
-      if (d < HOUND.aggroRange) {
-        moveToward(e, player.x, player.y, HOUND.speed, dt, player);
-      }
-      if (d < HOUND.meleeRange && d >= PLAYER_SAFE * 0.92 && e.meleeCd <= 0) {
-        ST3.Player.hurt(player, HOUND.meleeDmg);
-        e.meleeCd = HOUND.meleeCd;
-        e.attackFlash = 0.22;
-        if (ST3.Renderer && ST3.Renderer.spawnParticles) {
-          ST3.Renderer.spawnParticles(player.x, player.y, 'corrupt', 6, { kind: 'mist' });
+
+      // smoke: mist particles while moving
+      if (variant === 'smoke') {
+        const movedNow = Math.abs(e.x - prevX) + Math.abs(e.y - prevY) > 0.0008;
+        if (movedNow) {
+          e.mistAcc = (e.mistAcc || 0) + dt;
+          if (e.mistAcc > 0.09 && ST3.Renderer && ST3.Renderer.spawnParticles) {
+            e.mistAcc = 0;
+            ST3.Renderer.spawnParticles(e.x, e.y, 'corrupt', 1, {
+              kind: 'mist',
+              spread: 0.35,
+              life: 0.28,
+              scale: 0.2,
+            });
+          }
         }
       }
     } else if (e.kind === 'boss') {
       if (e.ringCd > 0) e.ringCd -= dt;
       if (e.chargeCd > 0) e.chargeCd -= dt;
 
-      // Charge rush: telegraph → dash → melee if in range
       if (e.chargeTele > 0) {
         e.attackFlash = Math.max(e.attackFlash, 0.22);
         e.chargeTele -= dt;
@@ -304,7 +340,6 @@
           moveToward(e, player.x, player.y, BOSS.speed, dt, player);
         }
 
-        // Spread bolts (primary ranged)
         if (d < BOSS.shootRange && e.fireCd <= 0 && los) {
           const base = Math.atan2(player.y - e.y, player.x - e.x);
           for (let k = -1; k <= 1; k++) {
@@ -325,7 +360,6 @@
           e.attackFlash = 0.3;
         }
 
-        // Ring pulse — radial bolts with gaps (telegraphed)
         if (e.ringCd <= 0 && los && d < BOSS.shootRange + 1.5) {
           e.ringCd = BOSS.ringCd + ST3.Utils.rand(-0.25, 0.35);
           e.attackFlash = 0.4;
@@ -360,7 +394,6 @@
           }
         }
 
-        // Start charge telegraph when mid-range
         if (e.chargeCd <= 0 && los && d > 1.8 && d < 7.5) {
           e.chargeTele = BOSS.chargeTelegraph;
           e.chargeCd = BOSS.chargeCd + ST3.Utils.rand(-0.4, 0.5);
@@ -372,29 +405,25 @@
       }
     }
 
-    // Jamais empiler sur le joueur
     separateFromPlayer(e, player);
 
-    // Anim state (does not change HP / AI numbers)
     const moved = Math.abs(e.x - prevX) + Math.abs(e.y - prevY) > 0.0008;
     e.moving = moved;
     e.lastX = e.x;
     e.lastY = e.y;
-    // Priority: attack > hurt > walk > idle
     if (e.attackFlash > 0) {
       e.anim = 'attack';
     } else if (e.hurtFlash > 0) {
       e.anim = 'hurt';
     } else if (moved) {
       e.anim = 'walk';
-      // Advance only while walking so walk0/walk1 swap ~7 Hz
       e.animT = (e.animT || 0) + dt;
     } else {
       e.anim = 'idle';
     }
   }
 
-  function damage(e, dmg) {
+  function damage(e, dmg, bolts) {
     if (!e.alive) return false;
     e.hp -= dmg;
     e.hurtFlash = 0.2;
@@ -404,6 +433,9 @@
       ST3.Audio.sfx.enemyDie();
       if (ST3.Renderer && ST3.Renderer.spawnParticles) {
         ST3.Renderer.spawnParticles(e.x, e.y, '#5aff9a', 14, { kind: 'mixed', spread: 2.4, life: 0.45 });
+      }
+      if (e.kind === 'monk' && e.variant === 'somnul') {
+        spawnSomnulDeathRing(e, bolts);
       }
       return true;
     }
@@ -429,7 +461,6 @@
       b.y += b.vy * dt;
       b.life -= dt;
 
-      // Trail mist along flight path
       b.trailAcc = (b.trailAcc || 0) + dt;
       if (b.trailAcc > 0.045 && ST3.Renderer && ST3.Renderer.spawnParticles) {
         b.trailAcc = 0;
@@ -449,19 +480,17 @@
       }
 
       if (b.friendly) {
-        // Hit enemies
         let hit = false;
         for (let j = 0; j < enemies.length; j++) {
           const e = enemies[j];
           if (!e.alive) continue;
           if (ST3.Utils.dist(b.x, b.y, e.x, e.y) < e.radius + b.r) {
-            damage(e, b.damage);
+            damage(e, b.damage, bolts);
             fxHit(b.x, b.y, true);
             hit = true;
             break;
           }
         }
-        // Boss HP is tracked on the boss enemy (synced to seal in game.js)
         if (hit) bolts.splice(i, 1);
       } else {
         if (ST3.Utils.dist(b.x, b.y, player.x, player.y) < ST3.Player.RADIUS + b.r) {
@@ -475,7 +504,8 @@
 
   ST3.Enemy = {
     MONK,
-    HOUND,
+    MONK_BASE,
+    MONK_VARIANTS,
     BOSS,
     createFromEntity,
     createBoss,

@@ -153,8 +153,15 @@
   }
 
   function bindDismiss(btn, onDone) {
+    let finished = false;
     function done(e) {
+      if (finished) return;
+      finished = true;
       if (e) e.preventDefault();
+      // Unlock audio in the same user-gesture turn (await in boot loses activation)
+      if (ST3.Audio && typeof ST3.Audio.unlock === 'function') {
+        ST3.Audio.unlock();
+      }
       btn.removeEventListener('click', done);
       window.removeEventListener('keydown', onKey);
       onDone();
@@ -220,11 +227,11 @@
     els.finTitre.textContent = "SHA'UR'NA";
     if (els.finTexte) {
       els.finTexte.innerHTML =
-        'Les quatre sceaux sont poussière.<br><br>' +
-        'Somnul rouvre l\'œil du Temple.<br>' +
-        'La pierre respire — lente, ancienne, satisfaite.<br><br>' +
+        'Les quatre sceaux sont à nouveau scellés.<br><br>' +
+        'Somnul se libère de l\'emprise du Temple.<br>' +
+        'La pierre respire - lente et ancienne.<br><br>' +
         '<em style="color:#6a9a72;font-style:normal;letter-spacing:2px">' +
-        'Ce qui fut scellé est repris.</em>';
+        'Ce qui lui fut confisqué est repris.</em>';
     }
     els.ecranFin.style.display = 'flex';
     els.finOk.onclick = function () {

@@ -243,10 +243,38 @@
     width: 46px; height: 46px; right: 86px; bottom: 92px; border-radius: 50%;
     font-size: 8px; letter-spacing: 1px;
   }
+
+  /* Loading / warmup overlay */
+  #temple-loading {
+    position: fixed; inset: 0; z-index: 30;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, #0a1810 0%, #020503 70%, #000 100%);
+    pointer-events: all;
+  }
+  #temple-loading.visible { display: flex; }
+  #temple-loading h1 {
+    color: #bfffc8; font-size: clamp(14px, 3.5vw, 22px); letter-spacing: 5px;
+    margin: 0 0 28px; text-shadow: 0 0 14px rgba(90, 255, 154, 0.35);
+    font-weight: bold;
+  }
+  #temple-load-track {
+    width: min(280px, 70vw); height: 6px;
+    background: #0a140c; border: 1px solid #2a4a34;
+  }
+  #temple-load-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(to right, #2a6a3e, #6affb0);
+    transition: width 0.08s linear;
+  }
+  #temple-load-pct {
+    margin-top: 14px; color: #5a7a60; font-size: 11px; letter-spacing: 3px;
+  }
 </style>
 </head>
 <body>
 <audio id="musique-niveau" loop preload="auto">
+  <source src="../assets/audio/sha-ur-na.m4a" type="audio/mp4">
+  <source src="../assets/audio/sha-ur-na.ogg" type="audio/ogg">
   <source src="../assets/audio/sha'ur'na.wav" type="audio/wav">
 </audio>
 
@@ -285,6 +313,12 @@ Somnul revient. Ce qui fut scellé doit être repris. »</p>
   <button id="intro-ok" type="button">ENTRER</button>
 </div>
 
+<div id="temple-loading" aria-live="polite" aria-busy="true">
+  <h1>CHARGEMENT DU TEMPLE…</h1>
+  <div id="temple-load-track"><div id="temple-load-fill"></div></div>
+  <div id="temple-load-pct">0%</div>
+</div>
+
 <div id="tutoriel">
   <h2>CONTRÔLES</h2>
   <div id="tutoriel-grid"></div>
@@ -315,17 +349,19 @@ Somnul revient. Ce qui fut scellé doit être repris. »</p>
   <button id="fin-ok" type="button">RETOUR AU TEMPLE</button>
 </div>
 
-<script src="../js/common.js"></script>
-<script src="./niveau3/utils.js"></script>
-<script src="./niveau3/art.js"></script>
-<script src="./niveau3/map.js"></script>
-<script src="./niveau3/audio.js"></script>
-<script src="./niveau3/raycaster.js"></script>
-<script src="./niveau3/renderer.js"></script>
-<script src="./niveau3/player.js"></script>
-<script src="./niveau3/enemy.js"></script>
-<script src="./niveau3/hud.js"></script>
-<script src="./niveau3/touch.js"></script>
-<script src="./niveau3/game.js"></script>
+<script src="../js/common.js?v=ampSpark1"></script>
+<script src="./niveau3/utils.js?v=ampSpark1"></script>
+<script src="./niveau3/art.js?v=ampSpark1"></script>
+<script src="./niveau3/map.js?v=ampSpark1"></script>
+<script src="./niveau3/audio.js?v=ampSpark1"></script>
+<script src="./niveau3/raycaster.js?v=ampSpark1"></script>
+<script src="./niveau3/engine3d.js?v=ampSpark1"></script>
+<script src="./niveau3/renderer.js?v=ampSpark1"></script>
+<script src="./niveau3/player.js?v=ampSpark1"></script>
+<script src="./niveau3/enemy.js?v=ampSpark1"></script>
+<script src="./niveau3/hud.js?v=ampSpark1"></script>
+<script src="./niveau3/touch.js?v=ampSpark1"></script>
+<script src="./niveau3/warmup.js?v=ampSpark1"></script>
+<script src="./niveau3/game.js?v=ampSpark1"></script>
 </body>
 </html>

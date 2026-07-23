@@ -13,6 +13,12 @@
    *  6 = autel fuzz
    *  7 = mur de câbles / LED
    *  8 = graffiti SOMNUL (wayfinding)
+   *  9 = Marshall délabré (mousse / grille déchirée)
+   * 10 = Orange délabré
+   * 11 = Ampeg délabré
+   * 12 = Marshall wrecked (court-circuit / brûlé)
+   * 13 = Orange wrecked
+   * 14 = Ampeg wrecked
    */
 
   const W = 28;
@@ -182,6 +188,156 @@
     grid[y][W - 1] = 1;
   }
 
+  const AMP_IDS = { 2: true, 3: true, 5: true, 9: true, 10: true, 11: true, 12: true, 13: true, 14: true };
+  const WRECKED_IDS = { 12: true, 13: true, 14: true };
+  const BRAND_FRESH = [2, 3, 5];
+  const BRAND_DECAYED = [9, 10, 11];
+  const BRAND_WRECKED = [12, 13, 14];
+
+  function cellHash(x, y) {
+    let n = (x * 374761393 + y * 668265263) >>> 0;
+    n = (n ^ (n >>> 13)) >>> 0;
+    return (n % 10000) / 10000;
+  }
+
+  function isOuter(x, y) {
+    return x === 0 || y === 0 || x === W - 1 || y === H - 1;
+  }
+
+  function bordersEmpty(x, y) {
+    return (
+      (grid[y][x - 1] === 0) ||
+      (grid[y][x + 1] === 0) ||
+      (grid[y - 1] && grid[y - 1][x] === 0) ||
+      (grid[y + 1] && grid[y + 1][x] === 0)
+    );
+  }
+
+  function ampIdForBrand(brandIdx, x, y) {
+    const h = cellHash(x, y);
+    // ~8% wrecked (sparks), ~20% decayed, rest fresh
+    if (h < 0.08) return BRAND_WRECKED[brandIdx];
+    if (h < 0.28) return BRAND_DECAYED[brandIdx];
+    return BRAND_FRESH[brandIdx];
+  }
+
+  /** Post-pass : ~70% des solides intérieurs → baffles (runs de marque + pierre isolée). */
+  function ampifyInterior() {
+    let interiorSolids = 0;
+    let ampCount = 0;
+    const candidates = [];
+    const corridor = [];
+
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const id = grid[y][x];
+        if (id <= 0) continue;
+        interiorSolids++;
+        if (AMP_IDS[id]) ampCount++;
+        if (id === 1) {
+          candidates.push({ x: x, y: y });
+          if (bordersEmpty(x, y)) corridor.push({ x: x, y: y });
+        }
+      }
+    }
+
+    const targetAmp = Math.round(interiorSolids * 0.7);
+    let need = Math.max(0, targetAmp - ampCount);
+    if (need === 0 || !candidates.length) return;
+
+    const visited = {};
+    function key(x, y) {
+      return y * W + x;
+    }
+
+    // Corridor brand runs : composantes connexes bordant le vide → une marque
+    const runs = [];
+    for (let i = 0; i < corridor.length; i++) {
+      const start = corridor[i];
+      const sk = key(start.x, start.y);
+      if (visited[sk] || grid[start.y][start.x] !== 1) continue;
+      const stack = [start];
+      const run = [];
+      visited[sk] = true;
+      while (stack.length) {
+        const c = stack.pop();
+        run.push(c);
+        const nbs = [
+          [c.x - 1, c.y],
+          [c.x + 1, c.y],
+          [c.x, c.y - 1],
+          [c.x, c.y + 1],
+        ];
+        for (let n = 0; n < 4; n++) {
+          const nx = nbs[n][0];
+          const ny = nbs[n][1];
+          if (isOuter(nx, ny)) continue;
+          const nk = key(nx, ny);
+          if (visited[nk]) continue;
+          if (grid[ny][nx] !== 1) continue;
+          if (!bordersEmpty(nx, ny)) continue;
+          visited[nk] = true;
+          stack.push({ x: nx, y: ny });
+        }
+      }
+      if (run.length) runs.push(run);
+    }
+
+    // Longues runs d'abord — esthétique « mur de marque »
+    runs.sort(function (a, b) {
+      return b.length - a.length;
+    });
+
+    for (let r = 0; r < runs.length && need > 0; r++) {
+      const run = runs[r];
+      const seed = run[0];
+      const brandIdx = (Math.floor(cellHash(seed.x, seed.y) * 3) + run.length) % 3;
+      for (let i = 0; i < run.length && need > 0; i++) {
+        const c = run[i];
+        if (grid[c.y][c.x] !== 1) continue;
+        grid[c.y][c.x] = ampIdForBrand(brandIdx, c.x, c.y);
+        need--;
+        ampCount++;
+      }
+    }
+
+    // Pierre intérieure restante (isolée / non-couloir) → marque aléatoire déterministe
+    const leftover = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (grid[c.y][c.x] === 1) leftover.push(c);
+    }
+    leftover.sort(function (a, b) {
+      return cellHash(a.x, a.y) - cellHash(b.x, b.y);
+    });
+    for (let i = 0; i < leftover.length && need > 0; i++) {
+      const c = leftover[i];
+      const brandIdx = Math.floor(cellHash(c.x + 3, c.y + 7) * 3) % 3;
+      grid[c.y][c.x] = ampIdForBrand(brandIdx, c.x, c.y);
+      need--;
+    }
+  }
+
+  ampifyInterior();
+
+  /** Cells with wrecked amps (sparks) — world centers for FX */
+  const wreckedAmps = [];
+  for (let wy = 1; wy < H - 1; wy++) {
+    for (let wx = 1; wx < W - 1; wx++) {
+      const wid = grid[wy][wx];
+      if (WRECKED_IDS[wid]) {
+        wreckedAmps.push({
+          x: wx + 0.5,
+          y: wy + 0.5,
+          cx: wx,
+          cy: wy,
+          id: wid,
+          phase: cellHash(wx, wy) * Math.PI * 2,
+        });
+      }
+    }
+  }
+
   const inscriptions = [
     { x: 14, y: 14, text: '« Les sceaux chantent encore. »' },
     { x: 6, y: 8, text: '« L\'ampli Marshall veille dans le couloir. »' },
@@ -212,20 +368,19 @@
     { type: 'health', x: 8.5, y: 21.5, amount: 20 },
     { type: 'health', x: 19.5, y: 8.5, amount: 20 },
 
-    // Moines / chiens : chambres et approches — nef centrale libre au spawn
-    { type: 'monk', x: 4.5, y: 5.5 },
-    { type: 'monk', x: 23.5, y: 5.5 },
-    { type: 'monk', x: 3.5, y: 21.5 },
-    { type: 'monk', x: 24.5, y: 21.5 },
-    { type: 'monk', x: 6.5, y: 3.5 },
-    { type: 'monk', x: 22.5, y: 24.5 },
-
-    { type: 'hound', x: 3.5, y: 8.5 },
-    { type: 'hound', x: 24.5, y: 8.5 },
-    { type: 'hound', x: 3.5, y: 19.5 },
-    { type: 'hound', x: 25.5, y: 26.5 },
-    { type: 'hound', x: 7.5, y: 24.5 },
-    { type: 'hound', x: 22.5, y: 5.5 },
+    // Moines variants : chambres et approches — nef centrale libre au spawn (~12)
+    { type: 'monk', variant: 'ash', x: 4.5, y: 5.5 },
+    { type: 'monk', variant: 'riff', x: 23.5, y: 5.5 },
+    { type: 'monk', variant: 'smoke', x: 3.5, y: 21.5 },
+    { type: 'monk', variant: 'somnul', x: 24.5, y: 21.5 },
+    { type: 'monk', variant: 'ash', x: 6.5, y: 3.5 },
+    { type: 'monk', variant: 'riff', x: 22.5, y: 24.5 },
+    { type: 'monk', variant: 'smoke', x: 3.5, y: 8.5 },
+    { type: 'monk', variant: 'somnul', x: 24.5, y: 8.5 },
+    { type: 'monk', variant: 'ash', x: 3.5, y: 19.5 },
+    { type: 'monk', variant: 'riff', x: 25.5, y: 26.5 },
+    { type: 'monk', variant: 'smoke', x: 7.5, y: 24.5 },
+    { type: 'monk', variant: 'somnul', x: 22.5, y: 5.5 },
 
     // Flaques — miettes de pain spawn → sceaux NW / NE / SW / SE
     { type: 'puddle', x: 14.5, y: 12.5 },
@@ -273,9 +428,13 @@
     grid,
     entities,
     inscriptions,
+    wreckedAmps,
     inBounds,
     isSolid,
     wallId,
     getPlayerSpawn,
+    isWreckedAmp: function (id) {
+      return !!WRECKED_IDS[id];
+    },
   };
 })(window.ST3 = window.ST3 || {});

@@ -98,21 +98,47 @@
     return canvas;
   }
 
-  /** Mur de baffles en grille (Marshall / Orange / Ampeg) */
-  function genCabWall(brand) {
+  /** Mur de baffles en grille (Marshall / Orange / Ampeg)
+   *  opts.decayed — mousse / grille déchirée
+   *  opts.wrecked — brûlé, fils exposés (implique decayed)
+   */
+  function genCabWall(brand, opts) {
+    opts = opts || {};
+    const wrecked = !!opts.wrecked;
+    const decayed = wrecked || !!opts.decayed;
+    const wear = wrecked ? 'wrecked' : decayed ? 'decayed' : false;
     const { canvas, ctx } = texCanvas();
     const A = ST3.Art;
     const C = A.COL;
     const bg =
       brand === 'orange' ? C.orangeD : brand === 'ampeg' ? '#0a100c' : C.marshallD;
-    A.rect(ctx, 0, 0, TEX_SIZE, TEX_SIZE, bg);
+    A.rect(
+      ctx,
+      0,
+      0,
+      TEX_SIZE,
+      TEX_SIZE,
+      wrecked
+        ? brand === 'orange'
+          ? '#3a1004'
+          : brand === 'ampeg'
+            ? '#040604'
+            : '#040202'
+        : decayed
+          ? brand === 'orange'
+            ? '#5a2808'
+            : brand === 'ampeg'
+              ? '#060a08'
+              : '#080604'
+          : bg
+    );
 
     // Grille 2×2 de faces 4×12 (32×32 chacune)
     const cw = 32;
     const ch = 32;
     for (let row = 0; row < 2; row++) {
       for (let col = 0; col < 2; col++) {
-        A.drawCabFace(ctx, col * cw, row * ch, cw, ch, brand);
+        A.drawCabFace(ctx, col * cw, row * ch, cw, ch, brand, wear);
         // Séparateurs / rails entre baffles
         A.rect(ctx, col * cw, row * ch, cw, 1, C.void);
         A.rect(ctx, col * cw, row * ch, 1, ch, C.void);
@@ -134,10 +160,88 @@
       [61, 61],
     ];
     const rivCol = brand === 'orange' ? '#3a2010' : brand === 'ampeg' ? '#6a9070' : C.gold;
+    const rivDecayed = brand === 'orange' ? '#5a3820' : brand === 'ampeg' ? '#3a5040' : '#6a5828';
     for (let i = 0; i < rivets.length; i++) {
-      A.px(ctx, rivets[i][0], rivets[i][1], rivCol);
+      A.px(ctx, rivets[i][0], rivets[i][1], decayed ? rivDecayed : rivCol);
     }
-    A.ditherDarken(ctx, 0, 0, TEX_SIZE, TEX_SIZE, 0.08);
+
+    if (decayed) {
+      // Mousse dans les joints (comme pierre)
+      const mossCols = [C.stoneL, '#1a4830', '#2a6840', '#143828', '#1e5038'];
+      const joints = [
+        [0, 31], [8, 31], [16, 31], [24, 32], [40, 31], [48, 32], [56, 31],
+        [31, 0], [31, 8], [31, 16], [32, 24], [31, 40], [32, 48], [31, 56],
+      ];
+      for (let j = 0; j < joints.length; j++) {
+        A.px(ctx, joints[j][0], joints[j][1], mossCols[j % mossCols.length]);
+        if (j & 1) A.px(ctx, joints[j][0] + 1, joints[j][1], mossCols[(j + 2) % mossCols.length]);
+      }
+      // Trous déchirés dans les grilles
+      const holes = [
+        [10, 12, 3, 2],
+        [42, 14, 2, 3],
+        [14, 44, 4, 2],
+        [46, 48, 3, 3],
+        [22, 20, 2, 2],
+        [50, 38, 2, 2],
+      ];
+      for (let h = 0; h < holes.length; h++) {
+        const hole = holes[h];
+        A.rect(ctx, hole[0], hole[1], hole[2], hole[3], C.void);
+        A.px(ctx, hole[0] - 1, hole[1], '#1a1410');
+        A.px(ctx, hole[0] + hole[2], hole[1] + hole[3] - 1, '#0c0a08');
+      }
+      // Rouille / oxydation
+      const rust = brand === 'orange' ? '#6a3010' : brand === 'ampeg' ? '#3a4020' : '#4a3020';
+      const rustSpots = [
+        [4, 28], [28, 6], [36, 58], [58, 36], [18, 50], [50, 18], [8, 40], [40, 8],
+      ];
+      for (let r = 0; r < rustSpots.length; r++) {
+        A.px(ctx, rustSpots[r][0], rustSpots[r][1], rust);
+        if (r & 1) A.px(ctx, rustSpots[r][0] + 1, rustSpots[r][1] + 1, '#3a2010');
+      }
+      // Saleté irrégulière
+      A.ditherDarken(ctx, 0, 0, TEX_SIZE, TEX_SIZE, wrecked ? 0.32 : 0.22);
+      ctx.fillStyle = 'rgba(20,40,28,0.35)';
+      ctx.fillRect(3, 48, 12, 3);
+      ctx.fillRect(40, 6, 8, 2);
+      ctx.fillRect(20, 30, 6, 2);
+    } else {
+      A.ditherDarken(ctx, 0, 0, TEX_SIZE, TEX_SIZE, 0.08);
+    }
+
+    if (wrecked) {
+      // Burn scars + sparking contact points (static copper/ember hints)
+      const burns = [
+        [8, 10, 10, 6],
+        [36, 40, 12, 8],
+        [18, 28, 6, 10],
+      ];
+      for (let b = 0; b < burns.length; b++) {
+        const bn = burns[b];
+        A.rect(ctx, bn[0], bn[1], bn[2], bn[3], '#020101');
+        A.px(ctx, bn[0] + 1, bn[1] + 1, '#4a1808');
+        A.px(ctx, bn[0] + bn[2] - 2, bn[1] + bn[3] - 2, '#2a1008');
+      }
+      // Exposed live contacts (bright tips — VFX will spark near these cells)
+      const contacts = [
+        [12, 14],
+        [44, 18],
+        [20, 48],
+        [52, 50],
+        [30, 32],
+      ];
+      for (let c = 0; c < contacts.length; c++) {
+        A.px(ctx, contacts[c][0], contacts[c][1], '#ffe89a');
+        A.px(ctx, contacts[c][0] + 1, contacts[c][1], '#c8ff90');
+        A.px(ctx, contacts[c][0], contacts[c][1] + 1, '#8aff60');
+      }
+      // Frayed cable stubs
+      A.rect(ctx, 2, 20, 1, 8, '#4a6050');
+      A.px(ctx, 2, 28, '#d0f0a0');
+      A.rect(ctx, 61, 38, 1, 6, '#4a6050');
+      A.px(ctx, 61, 44, '#ffe89a');
+    }
     return canvas;
   }
 
@@ -151,6 +255,30 @@
 
   function genAmpeg() {
     return genCabWall('ampeg');
+  }
+
+  function genDecayedMarshall() {
+    return genCabWall('marshall', { decayed: true });
+  }
+
+  function genDecayedOrange() {
+    return genCabWall('orange', { decayed: true });
+  }
+
+  function genDecayedAmpeg() {
+    return genCabWall('ampeg', { decayed: true });
+  }
+
+  function genWreckedMarshall() {
+    return genCabWall('marshall', { wrecked: true });
+  }
+
+  function genWreckedOrange() {
+    return genCabWall('orange', { wrecked: true });
+  }
+
+  function genWreckedAmpeg() {
+    return genCabWall('ampeg', { wrecked: true });
   }
 
   /** 4 — bande flamme verte runique (statique, aspect animé) */
@@ -470,6 +598,12 @@
     textures[6] = genFuzzAltar();
     textures[7] = genCableWall();
     textures[8] = genSomnulGraffiti();
+    textures[9] = genDecayedMarshall();
+    textures[10] = genDecayedOrange();
+    textures[11] = genDecayedAmpeg();
+    textures[12] = genWreckedMarshall();
+    textures[13] = genWreckedOrange();
+    textures[14] = genWreckedAmpeg();
   }
 
   function getTex(id) {
@@ -546,9 +680,23 @@
     };
   }
 
-  /** Marshall / Orange / Ampeg — murs qui tremblent et crachent des ondes */
+  /** Marshall / Orange / Ampeg (+ délabrés) — murs qui tremblent et crachent des ondes */
   function isAmpWall(id) {
-    return id === 2 || id === 3 || id === 5;
+    return (
+      id === 2 ||
+      id === 3 ||
+      id === 5 ||
+      id === 9 ||
+      id === 10 ||
+      id === 11 ||
+      id === 12 ||
+      id === 13 ||
+      id === 14
+    );
+  }
+
+  function isWreckedAmp(id) {
+    return id === 12 || id === 13 || id === 14;
   }
 
   /**
@@ -579,8 +727,8 @@
       const near = ST3.Utils.clamp(1 - w.dist / 6, 0.15, 1);
       const expand = 1 - pulse; // arcs s'ouvrent pendant le decay
       let stroke;
-      if (w.wallId === 3) stroke = '255,160,60';
-      else if (w.wallId === 5) stroke = '120,255,160';
+      if (w.wallId === 3 || w.wallId === 10) stroke = '255,160,60';
+      else if (w.wallId === 5 || w.wallId === 11) stroke = '120,255,160';
       else stroke = '200,180,80';
       for (let r = 0; r < 3; r++) {
         const rad = 5 + near * 10 + expand * (14 + r * 9) + r * 5;
@@ -612,6 +760,12 @@
     const ampWaves = [];
     let ampBass = 0;
 
+    // Matched focal: use Engine3D HALF_TAN when present (fallback tan(π/6)).
+    const halfTan =
+      (ST3.Engine3D && ST3.Engine3D.HALF_TAN) || Math.tan(Math.PI / 6);
+    const planeLen = Math.sqrt(planeX * planeX + planeY * planeY) || halfTan;
+    const focal = (w * 0.5) / planeLen;
+
     for (let x = 0; x < w; x += step) {
       const cameraX = (2 * x) / w - 1;
       const rdx = dirX + planeX * cameraX;
@@ -620,7 +774,7 @@
       zBuffer[x] = hit.dist;
       if (step === 2 && x + 1 < w) zBuffer[x + 1] = hit.dist;
 
-      const lineH = Math.min(h * 4, (h / hit.dist) | 0);
+      const lineH = Math.min(h * 4, (focal / hit.dist) | 0);
       let drawStart = (-lineH / 2 + halfH) | 0;
       let drawEnd = (lineH / 2 + halfH) | 0;
       if (drawStart < 0) drawStart = 0;
@@ -696,6 +850,7 @@
     castRay,
     renderWalls,
     isAmpWall,
+    isWreckedAmp,
     ampPulse,
   };
 })(window.ST3 = window.ST3 || {});

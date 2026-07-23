@@ -1,5 +1,5 @@
 /* SHA'UR'NA — boucle principale & machine d'états
- * États: boot → intro → tutorial → play → sealBoss → cine → win → menu
+ * États: boot → loading → intro → tutorial → play → sealBoss → cine → win → menu
  */
 (function (ST3) {
   'use strict';
@@ -49,7 +49,7 @@
           amount: ent.amount,
           taken: false,
         });
-      } else if (ent.type === 'monk' || ent.type === 'hound') {
+      } else if (ent.type === 'monk') {
         const e = ST3.Enemy.createFromEntity(ent);
         if (e) enemies.push(e);
       }
@@ -69,6 +69,7 @@
       bossForeshadow: 0, // 0 idle · 1 approaching · 2 ready to awaken
       foreshadowT: 0,
       animT: 0,
+      sealDream: 0.15,
       winPending: false,
       cineT: 0,
       cineBeat: 0,
@@ -491,6 +492,31 @@
     });
   }
 
+  function computeSealDream(st) {
+    const p = st.player;
+    if (!p) return 0.15;
+    let minD = Infinity;
+    const seals = st.seals || [];
+    for (let i = 0; i < seals.length; i++) {
+      const s = seals[i];
+      // Living seals (intact) or the awakened boss seal
+      if (s.destroyed && !s.isBoss) continue;
+      if (s.destroyed && s.isBoss && st._bossEnemy && !st._bossEnemy.alive) continue;
+      const d = ST3.Utils.dist(p.x, p.y, s.x, s.y);
+      if (d < minD) minD = d;
+    }
+    // Ambient far ~0.15; near seal (falloff ~9u) up to ~0.85
+    let dream = 0.15;
+    if (minD < Infinity) {
+      const near = Math.max(0, 1 - minD / 9);
+      dream = 0.15 + near * near * 0.7;
+    }
+    dream += Math.min(0.12, (st.sealsDestroyed || 0) * 0.03);
+    if (st.bossAwakened) dream += 0.08;
+    if (st.bossForeshadow > 0) dream += 0.04;
+    return Math.max(0.12, Math.min(0.85, dream));
+  }
+
   function update(dt) {
     if (!state) return;
     if (state.screenFlash > 0) {
@@ -501,11 +527,16 @@
       return;
     }
     if (state.phase !== 'play' && state.phase !== 'sealBoss') {
+      // Keep subtle world anim ticking during overlays so the raster path stays warm
+      if (state.phase === 'intro' || state.phase === 'tutorial' || state.phase === 'loading') {
+        state.animT += dt * 0.35;
+      }
       ST3.HUD.update(state);
       return;
     }
 
     state.animT += dt;
+    state.sealDream = computeSealDream(state);
     ST3.Player.update(state.player, dt, input, state.bolts, state.enemies);
 
     for (let i = 0; i < state.enemies.length; i++) {
@@ -567,18 +598,20 @@
     }
 
     state = freshState();
+    state.phase = 'loading';
     ST3.HUD.mount();
     ST3.Audio.bindMusic(document.getElementById('musique-niveau'));
     ST3.Renderer.init(document.getElementById('game-canvas'));
     setupKeyboard();
     ST3.Touch.mount(input);
+    ST3.Touch.setBlocked(true);
 
     if (typeof SlothFullscreen !== 'undefined') {
       SlothFullscreen.mount();
     }
     SlothDevSkip.mount(completeAndMenu);
 
-    // Unlock audio on first gesture
+    // Unlock audio on first gesture (may land during intro/tutorial)
     document.body.addEventListener(
       'pointerdown',
       function () {
@@ -587,16 +620,41 @@
       { once: true }
     );
 
+    const loadEl = document.getElementById('temple-loading');
+    const fillEl = document.getElementById('temple-load-fill');
+    const pctEl = document.getElementById('temple-load-pct');
+    if (loadEl) loadEl.classList.add('visible');
+
+    function updateLoadBar(p) {
+      const pct = Math.round(Math.max(0, Math.min(1, p)) * 100);
+      if (fillEl) fillEl.style.width = pct + '%';
+      if (pctEl) pctEl.textContent = pct + '%';
+    }
+
+    if (ST3.Warmup && typeof ST3.Warmup.run === 'function') {
+      await ST3.Warmup.run(updateLoadBar);
+    } else {
+      updateLoadBar(1);
+    }
+
+    if (loadEl) {
+      loadEl.classList.remove('visible');
+      loadEl.setAttribute('aria-busy', 'false');
+    }
+
+    // Keep the render path hot through intro/tutorial (avoids JIT cool-down)
     state.phase = 'intro';
     ST3.Touch.setBlocked(true);
-    ST3.Renderer.frame(state);
+    requestAnimationFrame(loop);
 
     await ST3.HUD.showIntro();
     const isTouch = typeof SlothDevice !== 'undefined' && SlothDevice.isTouchPrimary();
     state.phase = 'tutorial';
+    ST3.Touch.setBlocked(true);
     await ST3.HUD.showTutorial(isTouch);
 
     ST3.Audio.unlock();
+    if (ST3.Audio.warm) ST3.Audio.warm();
     ST3.Audio.startMusic();
     // Purge held keys from intro/tutoriel (Espace, etc.)
     input.forward = input.back = false;
@@ -606,11 +664,12 @@
     input.mouseDx = 0;
     input.lookStick = 0;
     actionLatch = false;
+    if (ST3.Engine3D && typeof ST3.Engine3D.resetStamp === 'function') {
+      ST3.Engine3D.resetStamp();
+    }
     state.phase = 'play';
     ST3.Touch.setBlocked(false);
     ST3.HUD.announce("SHA'UR'NA", 1800);
-
-    requestAnimationFrame(loop);
   }
 
   ST3.Game = {

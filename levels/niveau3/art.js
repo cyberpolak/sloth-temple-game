@@ -150,8 +150,12 @@
     }
   }
 
-  /** Speaker cab face (Marshall / Orange / Ampeg) pour textures mur */
-  function drawCabFace(ctx, x, y, w, h, brand) {
+  /** Speaker cab face (Marshall / Orange / Ampeg) pour textures mur
+   *  6e arg `wear` : false | true/'decayed' | 'wrecked'
+   */
+  function drawCabFace(ctx, x, y, w, h, brand, wear) {
+    const wrecked = wear === 'wrecked';
+    const decayed = wrecked || wear === true || wear === 'decayed';
     const isOrange = brand === 'orange';
     const isAmpeg = brand === 'ampeg';
     let body = COL.marshall;
@@ -168,6 +172,17 @@
       bodyL = '#2a4030';
       bodyD = '#0a100c';
       badge = '#8ab890';
+    }
+    if (wrecked) {
+      body = isOrange ? '#5a2008' : isAmpeg ? '#080c08' : '#0c0a08';
+      bodyL = isOrange ? '#7a3010' : isAmpeg ? '#142018' : '#181410';
+      bodyD = isOrange ? '#3a1004' : isAmpeg ? '#040604' : '#040202';
+      badge = isOrange ? '#2a1408' : isAmpeg ? '#2a4030' : '#3a3010';
+    } else if (decayed) {
+      body = isOrange ? '#8a4010' : isAmpeg ? '#101810' : '#141210';
+      bodyL = isOrange ? '#a05018' : isAmpeg ? '#1e3024' : '#22201a';
+      bodyD = isOrange ? '#5a2808' : isAmpeg ? '#060a08' : '#080604';
+      badge = isOrange ? '#4a2810' : isAmpeg ? '#4a6850' : '#6a5820';
     }
     rect(ctx, x, y, w, h, bodyD);
     rect(ctx, x + 1, y + 1, w - 2, h - 2, body);
@@ -210,12 +225,47 @@
       }
     }
     // badge
-    rect(ctx, x + 4, y + 2, w - 8, 2, badge);
-    if (isOrange) rect(ctx, x + 6, y + 2, w - 12, 1, '#ffaa44');
-    else if (isAmpeg) rect(ctx, x + 6, y + 2, w - 12, 1, '#c8e0c8');
-    else {
-      px(ctx, (x + w / 2) | 0, y + 2, COL.goldL);
-      px(ctx, ((x + w / 2) | 0) + 3, y + 2, COL.goldL);
+    if (wrecked) {
+      // Badge fondu / carbonisé
+      px(ctx, x + 5, y + 2, '#2a2010');
+      px(ctx, x + 7, y + 2, badge);
+    } else if (decayed) {
+      // Badge brisé / partiel
+      rect(ctx, x + 4, y + 2, (w - 8) >> 1, 2, badge);
+      if (((x + y) & 1) === 0) px(ctx, x + w - 6, y + 2, badge);
+      else rect(ctx, x + w - 10, y + 2, 4, 1, badge);
+    } else {
+      rect(ctx, x + 4, y + 2, w - 8, 2, badge);
+      if (isOrange) rect(ctx, x + 6, y + 2, w - 12, 1, '#ffaa44');
+      else if (isAmpeg) rect(ctx, x + 6, y + 2, w - 12, 1, '#c8e0c8');
+      else {
+        px(ctx, (x + w / 2) | 0, y + 2, COL.goldL);
+        px(ctx, ((x + w / 2) | 0) + 3, y + 2, COL.goldL);
+      }
+    }
+    if (decayed) {
+      // Mousse / traînées végétales
+      const moss = ['#1a4830', '#2a6840', '#143828', COL.stoneL];
+      px(ctx, x + 2, y + h - 4, moss[(x + y) & 3]);
+      px(ctx, x + 3, y + h - 3, moss[(x + 1) & 3]);
+      px(ctx, x + w - 4, y + 6, moss[(y) & 3]);
+      px(ctx, x + 5, gy + 2, moss[2]);
+      px(ctx, x + w - 6, gy + gh - 3, moss[0]);
+      rect(ctx, gx + 2, gy + gh - 2, 4, 1, moss[1]);
+      // Tache / saleté
+      px(ctx, gx + (gw >> 1), gy + 1, '#1a1410');
+      px(ctx, gx + 3, gy + (gh >> 1), '#0c0a08');
+    }
+    if (wrecked) {
+      // Scorch / exposed copper hint / burnt hole
+      rect(ctx, gx + 2, gy + 2, 5, 4, '#050302');
+      px(ctx, gx + 3, gy + 3, '#c87820');
+      px(ctx, gx + 4, gy + 4, '#ffe89a');
+      px(ctx, gx + gw - 5, gy + gh - 5, '#6a2810');
+      px(ctx, gx + gw - 4, gy + gh - 4, '#ffb040');
+      // Wire stub
+      px(ctx, x + w - 3, y + (h >> 1), '#8a9a70');
+      px(ctx, x + w - 2, y + (h >> 1) + 1, '#c8e0a0');
     }
   }
 
@@ -356,7 +406,66 @@
      Peak y≈2 → shoulders ≈18 → waist ≈36 → hem ≈57 → boots ≈61
      Poses: idle | walk0 | walk1 | attack | hurt
      ═══════════════════════════════════════════════════════════ */
-  function drawMonkFrame(ctx, pose) {
+
+  /* Monk variant robe / eye palettes (merged over COL at draw time) */
+  const MONK_PALETTES = {
+    ash: null, // default COL (green robes)
+    riff: {
+      robe: '#2a2418',
+      robeL: '#4a3c28',
+      robeD: '#141008',
+      robeM: '#5a4a30',
+      robeH: '#7a6840',
+      robeVD: '#080604',
+      cerbD: '#1a140c',
+      eye: '#ffe89a',
+      eyeGlow: '#fff0b0',
+      glow: '#c8a040',
+      glowSoft: '#ffe89a',
+      gold: '#e8c060',
+      goldL: '#fff0a8',
+      goldD: '#a87820',
+    },
+    smoke: {
+      robe: '#2a302e',
+      robeL: '#3a4844',
+      robeD: '#121816',
+      robeM: '#4a5854',
+      robeH: '#5a6864',
+      robeVD: '#080a09',
+      cerbD: '#1a201c',
+      eye: '#6a8a78',
+      eyeGlow: '#8aaa98',
+      glow: '#5a7a68',
+      glowSoft: '#8aaa98',
+      mist: '#5a6860',
+      mistL: '#7a8880',
+    },
+    somnul: {
+      robe: '#0a0c10',
+      robeL: '#161820',
+      robeD: '#040508',
+      robeM: '#1e2230',
+      robeH: '#2a3040',
+      robeVD: '#020204',
+      cerbD: '#080a10',
+      void: '#000002',
+      eye: '#7affaa',
+      eyeGlow: '#bfffc8',
+      glow: '#5aff9a',
+      glowSoft: '#d0ffe0',
+    },
+  };
+
+  function resolveMonkPalette(variant) {
+    const key = variant && MONK_PALETTES[variant] !== undefined ? variant : 'ash';
+    const over = MONK_PALETTES[key];
+    if (!over) return COL;
+    return Object.assign({}, COL, over);
+  }
+
+  function drawMonkFrame(ctx, pose, palette) {
+    const C = palette || COL;
     const hurt = pose === 'hurt';
     const atk = pose === 'attack';
     const walk = pose === 'walk0' || pose === 'walk1';
@@ -422,15 +531,15 @@
       const lx = cx + side + leg.ox;
       const top = hemY - 3 - leg.lift;
       const len = Math.max(4, footY - top - (leg.planted ? 0 : 2));
-      rect(ctx, lx - 2, top, 4, len - 1, COL.robeVD);
-      rect(ctx, lx - 1, top + 1, 2, len - 2, COL.robeD);
+      rect(ctx, lx - 2, top, 4, len - 1, C.robeVD);
+      rect(ctx, lx - 1, top + 1, 2, len - 2, C.robeD);
       if (leg.planted) {
-        rect(ctx, lx - 4, footY - 3, 8, 3, COL.robeVD);
+        rect(ctx, lx - 4, footY - 3, 8, 3, C.robeVD);
         rect(ctx, lx - 3, footY - 2, 6, 2, '#060504');
-        px(ctx, lx + 3, footY - 3, COL.goldD);
+        px(ctx, lx + 3, footY - 3, C.goldD);
       } else {
-        rect(ctx, lx - 1, top + len - 2, 5, 2, COL.robeVD);
-        px(ctx, lx + 3, top + len - 3, COL.robe);
+        rect(ctx, lx - 1, top + len - 2, 5, 2, C.robeVD);
+        px(ctx, lx + 3, top + len - 3, C.robe);
       }
     }
     drawBoot(-7, legL);
@@ -447,73 +556,73 @@
       const bias = (hemBias * t * t) | 0;
       const ox = cx + bias;
       // outline edge
-      px(ctx, ox - half - 1, y, COL.robeVD);
-      px(ctx, ox + half + 1, y, COL.robeVD);
-      rect(ctx, ox - half, y, half * 2 + 1, 1, t > 0.72 ? COL.robeD : COL.robe);
+      px(ctx, ox - half - 1, y, C.robeVD);
+      px(ctx, ox + half + 1, y, C.robeVD);
+      rect(ctx, ox - half, y, half * 2 + 1, 1, t > 0.72 ? C.robeD : C.robe);
       // 4 value steps
-      if (t < 0.55) rect(ctx, ox - half + 1, y, Math.max(2, half * 2 - 3), 1, COL.robeM);
+      if (t < 0.55) rect(ctx, ox - half + 1, y, Math.max(2, half * 2 - 3), 1, C.robeM);
       if (t < 0.22) {
-        rect(ctx, ox - half + 2, y, Math.max(1, half - 3), 1, COL.robeL);
-        px(ctx, ox - half + 3, y, COL.robeH);
+        rect(ctx, ox - half + 2, y, Math.max(1, half - 3), 1, C.robeL);
+        px(ctx, ox - half + 3, y, C.robeH);
       }
       // fold seams
-      if ((y % 4) === 0) px(ctx, ox - 2, y, COL.robeVD);
-      if ((y % 5) === 1) px(ctx, ox + 3 + (bias > 0 ? 1 : 0), y, COL.robeD);
+      if ((y % 4) === 0) px(ctx, ox - 2, y, C.robeVD);
+      if ((y % 5) === 1) px(ctx, ox + 3 + (bias > 0 ? 1 : 0), y, C.robeD);
     }
 
     // Overlapping asymmetric panels
-    tri(ctx, cx - 1, shoulderY + 3, cx - 9, waistY + 1, cx + 2, hemY - 10, COL.robeD);
-    tri(ctx, cx + 2, shoulderY + 5, cx + 10, waistY - 1, cx + 4, hemY - 8, COL.robe);
-    rect(ctx, cx - 1, shoulderY + 2, 2, waistY - shoulderY, COL.robeL);
+    tri(ctx, cx - 1, shoulderY + 3, cx - 9, waistY + 1, cx + 2, hemY - 10, C.robeD);
+    tri(ctx, cx + 2, shoulderY + 5, cx + 10, waistY - 1, cx + 4, hemY - 8, C.robe);
+    rect(ctx, cx - 1, shoulderY + 2, 2, waistY - shoulderY, C.robeL);
     // Side underlaps
-    rect(ctx, cx - 11 + (hemBias * 0.15) | 0, waistY, 3, hemY - waistY - 1, COL.robeVD);
-    rect(ctx, cx + 8 + (hemBias * 0.15) | 0, waistY + 1, 4, hemY - waistY - 3, COL.robeD);
+    rect(ctx, cx - 11 + (hemBias * 0.15) | 0, waistY, 3, hemY - waistY - 1, C.robeVD);
+    rect(ctx, cx + 8 + (hemBias * 0.15) | 0, waistY + 1, 4, hemY - waistY - 3, C.robeD);
     // Hem scallops
     for (let i = -4; i <= 4; i++) {
       const hx = cx + hemBias + i * 3;
-      px(ctx, hx, hemY + 1, COL.robeVD);
-      px(ctx, hx, hemY, i & 1 ? COL.robeL : COL.robeM);
-      px(ctx, hx + 1, hemY - 1, COL.robeD);
+      px(ctx, hx, hemY + 1, C.robeVD);
+      px(ctx, hx, hemY, i & 1 ? C.robeL : C.robeM);
+      px(ctx, hx + 1, hemY - 1, C.robeD);
     }
 
     // Chest inset
-    rect(ctx, cx - 5, shoulderY + 2, 10, 13, COL.robeVD);
-    rect(ctx, cx - 4, shoulderY + 3, 8, 11, COL.cerbD);
-    rect(ctx, cx - 3, shoulderY + 4, 6, 9, COL.robeD);
-    rect(ctx, cx - 2, shoulderY + 4, 1, 10, COL.robeVD);
-    rect(ctx, cx + 1, shoulderY + 4, 1, 10, COL.robeVD);
+    rect(ctx, cx - 5, shoulderY + 2, 10, 13, C.robeVD);
+    rect(ctx, cx - 4, shoulderY + 3, 8, 11, C.cerbD);
+    rect(ctx, cx - 3, shoulderY + 4, 6, 9, C.robeD);
+    rect(ctx, cx - 2, shoulderY + 4, 1, 10, C.robeVD);
+    rect(ctx, cx + 1, shoulderY + 4, 1, 10, C.robeVD);
 
     // Thin ritual sash
-    rect(ctx, cx - 8, waistY, 16, 1, COL.goldD);
-    rect(ctx, cx - 7, waistY, 14, 1, COL.gold);
-    px(ctx, cx - 4, waistY, COL.goldL);
-    px(ctx, cx + 3, waistY, COL.goldL);
-    rect(ctx, cx, waistY + 1, 1, 4, COL.goldD);
-    px(ctx, cx, waistY + 5, COL.glow);
+    rect(ctx, cx - 8, waistY, 16, 1, C.goldD);
+    rect(ctx, cx - 7, waistY, 14, 1, C.gold);
+    px(ctx, cx - 4, waistY, C.goldL);
+    px(ctx, cx + 3, waistY, C.goldL);
+    rect(ctx, cx, waistY + 1, 1, 4, C.goldD);
+    px(ctx, cx, waistY + 5, C.glow);
 
     // Capelet / shoulders (narrow — avoid squat top-heavy read)
-    oval(ctx, cx - 6, shoulderY, 5, 2, COL.robeL);
-    oval(ctx, cx + 6, shoulderY, 5, 2, COL.robeM);
-    rect(ctx, cx - 8, shoulderY - 1, 16, 2, COL.robe);
-    px(ctx, cx - 7, shoulderY - 1, COL.robeH);
+    oval(ctx, cx - 6, shoulderY, 5, 2, C.robeL);
+    oval(ctx, cx + 6, shoulderY, 5, 2, C.robeM);
+    rect(ctx, cx - 8, shoulderY - 1, 16, 2, C.robe);
+    px(ctx, cx - 7, shoulderY - 1, C.robeH);
 
     // Sleeves
     function drawSleeve(sx, sy, billow, raised) {
       if (raised) {
-        shadeOval(ctx, sx, sy + 3, 4 + (billow / 2) | 0, 6, COL.robeVD, COL.robeD, COL.robe);
-        shadeOval(ctx, sx + 3, sy - 4, 5 + (billow > 3 ? 2 : 0), 7, COL.robeD, COL.robe, COL.robeL);
+        shadeOval(ctx, sx, sy + 3, 4 + (billow / 2) | 0, 6, C.robeVD, C.robeD, C.robe);
+        shadeOval(ctx, sx + 3, sy - 4, 5 + (billow > 3 ? 2 : 0), 7, C.robeD, C.robe, C.robeL);
         if (billow > 3) {
-          px(ctx, sx + 9, sy - 2, COL.robeL);
-          px(ctx, sx + 10, sy, COL.robeM);
-          px(ctx, sx + 8, sy + 3, COL.robeVD);
-          px(ctx, sx - 4, sy + 5, COL.robeD);
+          px(ctx, sx + 9, sy - 2, C.robeL);
+          px(ctx, sx + 10, sy, C.robeM);
+          px(ctx, sx + 8, sy + 3, C.robeVD);
+          px(ctx, sx - 4, sy + 5, C.robeD);
         }
         clawHand(ctx, sx + 4, sy - 8, 1, true);
       } else {
-        shadeOval(ctx, sx, sy + 2, 4 + (billow / 2) | 0, 10, COL.robeVD, COL.robeD, COL.robe);
-        rect(ctx, sx - 2, sy + 9, 5, 5, COL.robeD);
-        rect(ctx, sx - 1, sy + 10, 3, 3, COL.robe);
-        px(ctx, sx - 3, sy + 11, COL.robeVD);
+        shadeOval(ctx, sx, sy + 2, 4 + (billow / 2) | 0, 10, C.robeVD, C.robeD, C.robe);
+        rect(ctx, sx - 2, sy + 9, 5, 5, C.robeD);
+        rect(ctx, sx - 1, sy + 10, 3, 3, C.robe);
+        px(ctx, sx - 3, sy + 11, C.robeVD);
         clawHand(ctx, sx, sy + 15, sx < cx ? -1 : 1, false);
       }
     }
@@ -527,21 +636,21 @@
       rect(ctx, sx, sy + 8, 3, 44, '#100c08');
       rect(ctx, sx + 1, sy + 8, 1, 44, '#2a2218');
       px(ctx, sx + 2, sy + 14, '#3a3020');
-      rect(ctx, sx - 1, sy + 16, 5, 2, COL.goldD);
-      rect(ctx, sx, sy + 16, 3, 1, COL.goldL);
-      rect(ctx, sx - 1, sy + 36, 5, 2, COL.goldD);
-      px(ctx, sx + 1, sy + 24, COL.corrupt);
-      rect(ctx, sx - 3, shoulderY - 4, 8, 5, COL.robeD);
-      rect(ctx, sx - 2, shoulderY - 3, 6, 3, COL.robeL);
+      rect(ctx, sx - 1, sy + 16, 5, 2, C.goldD);
+      rect(ctx, sx, sy + 16, 3, 1, C.goldL);
+      rect(ctx, sx - 1, sy + 36, 5, 2, C.goldD);
+      px(ctx, sx + 1, sy + 24, C.corrupt);
+      rect(ctx, sx - 3, shoulderY - 4, 8, 5, C.robeD);
+      rect(ctx, sx - 2, shoulderY - 3, 6, 3, C.robeL);
       clawHand(ctx, sx + 1, shoulderY - 6, 1, true);
       disk(ctx, sx + 1, sy + 5, 4, 'rgba(8,32,16,0.5)');
-      pixelFlame(ctx, sx + 1, sy + 6, 15, COL.glowSoft, COL.glow, '#1a6840');
-      pixelFlame(ctx, sx, sy + 5, 10, COL.glow, '#2aff6a', COL.glowSoft);
-      px(ctx, sx - 4, sy + 1, COL.glow);
-      px(ctx, sx + 6, sy + 3, COL.glowSoft);
+      pixelFlame(ctx, sx + 1, sy + 6, 15, C.glowSoft, C.glow, '#1a6840');
+      pixelFlame(ctx, sx, sy + 5, 10, C.glow, '#2aff6a', C.glowSoft);
+      px(ctx, sx - 4, sy + 1, C.glow);
+      px(ctx, sx + 6, sy + 3, C.glowSoft);
       px(ctx, sx + 1, sy - 1, '#ffffff');
-      rect(ctx, sx, sy + 5, 3, 2, COL.goldD);
-      px(ctx, sx + 1, sy + 4, COL.goldL);
+      rect(ctx, sx, sy + 5, 3, 2, C.goldD);
+      px(ctx, sx + 1, sy + 4, C.goldL);
     } else {
       drawSleeve(cx + sleeveL.ox, shoulderY + 5 + sleeveL.oy, sleeveL.billow, false);
       drawSleeve(cx + sleeveR.ox, shoulderY + 5 + sleeveR.oy, sleeveR.billow, false);
@@ -553,42 +662,42 @@
     const hx = cx + hoodTilt;
     const hy = peakY;
     // Elongated peak — not a round ball
-    tri(ctx, hx - 10, hy + 16, hx, hy, hx + 10, hy + 16, COL.robeVD);
-    tri(ctx, hx - 8, hy + 16, hx, hy + 2, hx + 8, hy + 16, COL.robeD);
+    tri(ctx, hx - 10, hy + 16, hx, hy, hx + 10, hy + 16, C.robeVD);
+    tri(ctx, hx - 8, hy + 16, hx, hy + 2, hx + 8, hy + 16, C.robeD);
     // Vertical hood shaft (elongation)
-    rect(ctx, hx - 6, hy + 6, 12, 12, COL.robeD);
-    rect(ctx, hx - 5, hy + 7, 10, 10, COL.robe);
-    rect(ctx, hx - 1, hy + 2, 2, 10, COL.robeL);
-    px(ctx, hx, hy + 1, COL.robeH);
-    px(ctx, hx, hy, COL.robeVD); // peak tip outline
+    rect(ctx, hx - 6, hy + 6, 12, 12, C.robeD);
+    rect(ctx, hx - 5, hy + 7, 10, 10, C.robe);
+    rect(ctx, hx - 1, hy + 2, 2, 10, C.robeL);
+    px(ctx, hx, hy + 1, C.robeH);
+    px(ctx, hx, hy, C.robeVD); // peak tip outline
     // Cowl rim
-    oval(ctx, hx, hy + 14, 8, 2, COL.robeL);
-    px(ctx, hx - 6, hy + 14, COL.robeH);
-    px(ctx, hx + 5, hy + 14, COL.robeM);
+    oval(ctx, hx, hy + 14, 8, 2, C.robeL);
+    px(ctx, hx - 6, hy + 14, C.robeH);
+    px(ctx, hx + 5, hy + 14, C.robeM);
     // Asymmetric side flaps
-    tri(ctx, hx - 9, hy + 14, hx - 13, hy + 22, hx - 3, hy + 20, COL.robeD);
-    tri(ctx, hx + 7, hy + 15, hx + 12, hy + 21, hx + 2, hy + 19, COL.robeVD);
+    tri(ctx, hx - 9, hy + 14, hx - 13, hy + 22, hx - 3, hy + 20, C.robeD);
+    tri(ctx, hx + 7, hy + 15, hx + 12, hy + 21, hx + 2, hy + 19, C.robeVD);
 
     // Deep void face — pin slits only (never cute rectangles / grille)
-    rect(ctx, hx - 5, hy + 13, 10, 9, COL.void);
+    rect(ctx, hx - 5, hy + 13, 10, 9, C.void);
     rect(ctx, hx - 4, hy + 14, 8, 7, '#010201');
     // Deep socket pits
     rect(ctx, hx - 4, hy + 15, 2, 3, '#000000');
     rect(ctx, hx + 2, hy + 15, 2, 3, '#000000');
-    const eyeCol = hurt ? '#ffe8c0' : COL.eye;
-    const eyeHi = hurt ? '#ffffff' : COL.glowSoft;
+    const eyeCol = hurt ? '#ffe8c0' : C.eye;
+    const eyeHi = hurt ? '#ffffff' : C.glowSoft;
     // 2×1 menacing slits buried in void
     px(ctx, hx - 4, hy + 16, eyeCol);
     px(ctx, hx - 3, hy + 16, eyeHi);
     px(ctx, hx + 2, hy + 16, eyeCol);
     px(ctx, hx + 3, hy + 16, eyeHi);
     // Brow ridge
-    rect(ctx, hx - 5, hy + 14, 10, 1, COL.robeVD);
+    rect(ctx, hx - 5, hy + 14, 10, 1, C.robeVD);
     // Chin void
-    rect(ctx, hx - 2, hy + 20, 4, 2, COL.void);
+    rect(ctx, hx - 2, hy + 20, 4, 2, C.void);
     // Hood outline readability
-    px(ctx, hx - 10, hy + 16, COL.robeVD);
-    px(ctx, hx + 10, hy + 16, COL.robeVD);
+    px(ctx, hx - 10, hy + 16, C.robeVD);
+    px(ctx, hx + 10, hy + 16, C.robeVD);
 
     if (hurt) {
       hurtSparks(ctx, [
@@ -599,265 +708,161 @@
     }
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     Hound — low predatory ash-beast (64×64)
-     Long body (~50px), thick haunches, thin forelegs, arched
-     jagged spine, tapered snout, slit eyes
-     Poses: idle | walk0 | walk1 | attack | hurt
-     ═══════════════════════════════════════════════════════════ */
-  function drawHoundFrame(ctx, pose) {
-    const hurt = pose === 'hurt';
-    const atk = pose === 'attack';
-    const w1 = pose === 'walk1';
-    const walk = pose === 'walk0' || pose === 'walk1';
-    const shake = hurt ? 1 : 0;
+  /** LE ImageData packing: A<<24|B<<16|G<<8|R */
+  function packPix(r, g, b, a) {
+    return ((a == null ? 255 : a) << 24) | ((b & 255) << 16) | ((g & 255) << 8) | (r & 255);
+  }
 
-    let stretch = 0;
-    let crouch = 0;
-    let arch = 0;
-    let headDip = 0;
-    let tailSwing = 0;
-    let legs = [
-      { x: 18, lift: 0, planted: true, rear: false },
-      { x: 26, lift: 0, planted: true, rear: false },
-      { x: 40, lift: 0, planted: true, rear: true },
-      { x: 49, lift: 0, planted: true, rear: true },
-    ];
+  function hash2(x, y) {
+    let n = (x * 374761393 + y * 668265263) | 0;
+    n = (n ^ (n >>> 13)) * 1274126177;
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
 
-    if (walk) {
-      crouch = w1 ? 1 : 0;
-      arch = w1 ? 2 : 1;
-      headDip = w1 ? 0 : -2;
-      tailSwing = w1 ? -5 : 5;
-      if (w1) {
-        legs = [
-          { x: 15, lift: 9, planted: false, rear: false },
-          { x: 29, lift: 0, planted: true, rear: false },
-          { x: 43, lift: 0, planted: true, rear: true },
-          { x: 46, lift: 8, planted: false, rear: true },
-        ];
-      } else {
-        legs = [
-          { x: 21, lift: 0, planted: true, rear: false },
-          { x: 23, lift: 9, planted: false, rear: false },
-          { x: 37, lift: 8, planted: false, rear: true },
-          { x: 51, lift: 0, planted: true, rear: true },
-        ];
-      }
-    } else if (atk) {
-      stretch = 5;
-      crouch = -3;
-      arch = 4;
-      headDip = -4;
-      tailSwing = -6;
-      legs = [
-        { x: 24, lift: 0, planted: true, rear: false },
-        { x: 32, lift: 0, planted: true, rear: false },
-        { x: 40, lift: 3, planted: false, rear: true },
-        { x: 48, lift: 4, planted: false, rear: true },
-      ];
-    } else if (hurt) {
-      stretch = -3;
-      crouch = 3;
-      arch = -2;
-      headDip = 4;
-      tailSwing = 4;
-      legs = [
-        { x: 16, lift: 2, planted: false, rear: false },
-        { x: 25, lift: 0, planted: true, rear: false },
-        { x: 41, lift: 0, planted: true, rear: true },
-        { x: 47, lift: 3, planted: false, rear: true },
-      ];
-    } else {
-      crouch = 2;
-      arch = 3;
-      headDip = -1;
-      tailSwing = 2;
-      legs = [
-        { x: 19, lift: 0, planted: true, rear: false },
-        { x: 26, lift: 1, planted: true, rear: false },
-        { x: 41, lift: 0, planted: true, rear: true },
-        { x: 50, lift: 0, planted: true, rear: true },
-      ];
+  /** Periodic value noise — lattice wraps every `period` cells (tileable). */
+  function smoothNoiseWrap(x, y, period) {
+    const p = period || 64;
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const xf = x - xi;
+    const yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf);
+    const v = yf * yf * (3 - 2 * yf);
+    const x0 = ((xi % p) + p) % p;
+    const y0 = ((yi % p) + p) % p;
+    const x1 = (x0 + 1) % p;
+    const y1 = (y0 + 1) % p;
+    const a = hash2(x0, y0);
+    const b = hash2(x1, y0);
+    const c = hash2(x0, y1);
+    const d = hash2(x1, y1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+
+  function fbmWrap(x, y, oct, period) {
+    let amp = 0.5;
+    let freq = 1;
+    let sum = 0;
+    let norm = 0;
+    const p = period || 64;
+    for (let i = 0; i < oct; i++) {
+      // Integer freq + fixed lattice period p → noise(x)=noise(x+p)
+      sum += amp * smoothNoiseWrap(x * freq, y * freq, p);
+      norm += amp;
+      amp *= 0.5;
+      freq *= 2;
     }
+    return sum / norm;
+  }
 
-    const bodyY = 33 + crouch;
-    const spineY = bodyY - 7 - arch;
-    const bellyY = bodyY + 9;
-    const footY = 58 + (crouch > 0 ? 1 : 0);
+  /**
+   * 64×64 tileable cracked flagstone pavement (dark greens/greys, mossy joints).
+   * Returns Uint32Array LE-packed pixels — no horizontal scanline pattern.
+   */
+  function genPavementTex() {
+    const S = 64;
+    const out = new Uint32Array(S * S);
+    const cell = 32; // larger flagstones readable under perspective
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        // Irregular stone cell via warped grid (tileable wrap)
+        const wx = x + fbmWrap(x, y, 3, S) * 3.5;
+        const wy = y + fbmWrap(x + 20, y + 11, 3, S) * 3.5;
+        const mx = ((wx % S) + S) % S;
+        const my = ((wy % S) + S) % S;
+        const cx = (mx / cell) | 0;
+        const cy = (my / cell) | 0;
+        const lx = mx - cx * cell;
+        const ly = my - cy * cell;
+        const edge = Math.min(lx, ly, cell - 1 - lx, cell - 1 - ly);
+        const jointW = 1.2 + hash2(cx, cy) * 0.8;
+        const isJoint = edge < jointW;
 
-    oval(ctx, 32 + shake, footY + 1, 22, 2, 'rgba(0,0,0,0.55)');
+        const n = fbmWrap(x + cx * 3.1, y + cy * 2.7, 4, S);
+        const crack =
+          Math.abs(fbmWrap(x + 40, y + 7, 3, S) - 0.5) < 0.04 &&
+          hash2(cx + 3, cy + 9) > 0.45;
 
-    // Legs — thin fore / thick rear haunches
-    for (let i = 0; i < legs.length; i++) {
-      const L = legs[i];
-      const lx = L.x + stretch * (L.rear ? 0 : 0.4) + shake;
-      const thick = L.rear ? 9 : 4;
-      const top = bodyY + (L.rear ? 1 : 4) - L.lift;
-      const len = footY - top - (L.planted ? 0 : 1);
-      const hx0 = (lx - thick / 2) | 0;
-      rect(ctx, hx0, top, thick, Math.max(3, (len * 0.42) | 0), COL.cerbD);
-      rect(ctx, hx0 + 1, top + 1, Math.max(1, thick - 2), Math.max(2, (len * 0.38) | 0), COL.cerb);
-      if (L.rear) {
-        shadeOval(ctx, lx - 1, top - 3, 8, 7, COL.cerbVD, COL.cerb, COL.cerbL);
-        px(ctx, lx - 5, top - 2, COL.cerbH);
-        px(ctx, lx + 3, top - 1, COL.cerbH);
-        px(ctx, lx, top - 4, COL.cerbL);
-      } else {
-        // Foreleg shoulder knuckle (not a stick from the torso)
-        shadeOval(ctx, lx, top - 1, 3, 3, COL.cerbD, COL.cerb, COL.cerbL);
-      }
-      const mid = top + ((len * 0.42) | 0);
-      const shinW = L.rear ? 4 : 2;
-      const sx0 = (lx - shinW / 2) | 0;
-      rect(ctx, sx0, mid, shinW, Math.max(3, len - ((len * 0.42) | 0)), COL.cerbVD);
-      if (shinW > 2) rect(ctx, sx0 + 1, mid, shinW - 2, Math.max(2, len - ((len * 0.42) | 0) - 1), COL.cerbL);
-      px(ctx, lx, mid, COL.cerbH);
-      if (L.planted) {
-        const pw = L.rear ? 9 : 5;
-        const px0 = (lx - pw / 2) | 0;
-        rect(ctx, px0, footY - 2, pw, 3, COL.ashD);
-        rect(ctx, px0 + 1, footY - 1, pw - 2, 2, COL.cerbVD);
-        px(ctx, lx - 2, footY, COL.clawL);
-        px(ctx, lx, footY, COL.claw);
-        px(ctx, lx + 2, footY, COL.clawL);
-        if (L.rear) px(ctx, lx + 3, footY - 1, COL.claw);
-      } else {
-        rect(ctx, lx - 1, top + len - 2, 3, 2, COL.clawD);
-        px(ctx, lx + 1, top + len - 3, COL.clawL);
+        let r, g, b;
+        if (isJoint) {
+          // Mossy dark joint — readable contrast
+          const moss = 0.4 + n * 0.5;
+          r = (14 + moss * 22) | 0;
+          g = (36 + moss * 48) | 0;
+          b = (18 + moss * 20) | 0;
+        } else {
+          // Flagstone body — lighter grey-green so fog doesn't crush it
+          const slab = hash2(cx * 17, cy * 31);
+          const base = 48 + slab * 28 + n * 22;
+          r = (base * 0.58) | 0;
+          g = (base * 0.78 + 10) | 0;
+          b = (base * 0.52) | 0;
+          if (crack) {
+            r = (r * 0.5) | 0;
+            g = (g * 0.55) | 0;
+            b = (b * 0.45) | 0;
+          }
+          if (((x * 3 + y * 7) & 7) === 0) {
+            r = Math.max(0, r - 5);
+            g = Math.max(0, g - 3);
+            b = Math.max(0, b - 4);
+          }
+        }
+        out[y * S + x] = packPix(r, g, b, 255);
       }
     }
+    return out;
+  }
 
-    // Continuous long body (x≈8→56) — overlapping masses, not vertical stripes
-    const bx0 = 8 + shake;
-    const bx1 = 56 + stretch + shake;
-    // Haunch mass (rear — thick predatory drive)
-    shadeOval(ctx, 14 + shake, bodyY + 1, 12, 11, COL.cerbVD, COL.cerbD, COL.cerb);
-    shadeOval(ctx, 12 + shake, bodyY - 2, 9, 8, COL.cerbD, COL.cerb, COL.cerbL);
-    px(ctx, 9 + shake, bodyY - 4, COL.cerbH);
-    px(ctx, 10 + shake, bodyY - 1, COL.cerbH);
-    // Mid torso bridge (smooth ovals following arch)
-    shadeOval(ctx, 28 + stretch * 0.2 + shake, bodyY - arch * 0.3, 14, 7, COL.cerbVD, COL.cerbD, COL.cerb);
-    shadeOval(ctx, 34 + stretch * 0.3 + shake, bodyY - 1 - arch * 0.2, 11, 6, COL.cerbD, COL.cerb, COL.cerbL);
-    // Spine ridge fill (arched top silhouette)
-    oval(ctx, 30 + stretch * 0.2 + shake, spineY + 6, 16, 4, COL.cerbD);
-    oval(ctx, 30 + stretch * 0.2 + shake, spineY + 5, 14, 3, COL.cerb);
-    // Chest / shoulders
-    shadeOval(ctx, 46 + stretch + shake, bodyY - 1, 9, 8, COL.cerbD, COL.cerb, COL.cerbH);
-    px(ctx, 48 + stretch + shake, bodyY - 5, COL.cerbH);
-    // Belly tuck
-    shadeOval(ctx, 28 + shake, bellyY - 1, 14, 3, COL.cerbVD, COL.ashD, COL.ash);
-    // Muscle / rib ticks (sparse — not segment bars)
-    px(ctx, 22 + shake, bodyY + 2, COL.cerbVD);
-    px(ctx, 27 + shake, bodyY - 2, COL.cerbH);
-    px(ctx, 32 + shake, bodyY + 1, COL.cerbVD);
-    px(ctx, 37 + shake, bodyY - 2, COL.cerbH);
-    px(ctx, 42 + stretch * 0.3 + shake, bodyY + 1, COL.cerbVD);
-    // Outline edges for dark BG
-    px(ctx, bx0 + 1, bellyY, COL.cerbVD);
-    px(ctx, bx1 - 3, bodyY + 2, COL.cerbVD);
+  /**
+   * Tileable liquid marble: black + toxic neon green swirls.
+   * Large coherent eddies. Runtime animates via UV scroll.
+   * @param {{bright?:boolean, size?:number}} [opts]
+   */
+  function genDreamMarbleTex(opts) {
+    const bright = !!(opts && opts.bright);
+    const S = (opts && opts.size) || 64;
+    const out = new Uint32Array(S * S);
+    const TAU = Math.PI * 2;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const u = x / S;
+        const v = y / S;
+        const a = Math.sin(u * TAU * 2) * Math.cos(v * TAU * 2);
+        const bb = Math.sin((u + v) * TAU * 1.5);
+        const cc = Math.cos((u - v * 1.2) * TAU * 2);
+        const w1 = fbmWrap(x * 0.35, y * 0.35, 3, S);
+        const w2 = fbmWrap(x * 0.35 + 11, y * 0.35 + 7, 3, S);
+        const wx = u * 2.4 + a * 0.65 + (w1 - 0.5) * 1.6;
+        const wy = v * 2.4 + bb * 0.65 + (w2 - 0.5) * 1.6;
+        const ribbon =
+          Math.sin(wx * TAU * 0.75 + Math.sin(wy * TAU * 0.55) * 1.8) * 0.55 +
+          Math.sin(wy * TAU * 0.9 - Math.cos(wx * TAU * 0.5) * 1.4) * 0.45 +
+          cc * 0.18;
+        let t = ribbon * 0.5 + 0.5;
+        const mid = bright ? 0.58 : 0.62;
+        t = 1 / (1 + Math.exp(-(t - mid) * (bright ? 8 : 10)));
+        const filament = Math.abs(Math.sin(wx * TAU * 1.8 + wy * TAU * 1.5));
+        if (filament > 0.985) t = Math.min(1, t + 0.5);
 
-    // Jagged dorsal spines + fur
-    const spines = [
-      [12, 5], [17, 8], [22, 6], [27, 10], [32, 7], [37, 11], [42, 7], [47, 5], [51, 3],
-    ];
-    for (let i = 0; i < spines.length; i++) {
-      const sx = spines[i][0] + stretch * (spines[i][0] / 55) + shake;
-      const sh = spines[i][1] + (atk && i > 4 ? 2 : 0) + (walk && w1 && (i & 1) ? 1 : 0);
-      const base = spineY + 5;
-      tri(ctx, sx, base, sx + 2, base - sh, sx + 4, base, (i & 1) ? COL.cerbD : COL.cerbVD);
-      tri(ctx, sx + 1, base, sx + 2, base - sh + 1, sx + 3, base, (i & 1) ? COL.ashL : COL.cerbL);
-      if (!(i & 1)) {
-        px(ctx, sx - 1, base + 1, COL.cerbH);
-        px(ctx, sx + 4, base, COL.ash);
+        const grain = (hash2(x, y) - 0.5) * 6;
+        let r = (t * (bright ? 18 : 8)) | 0;
+        let g = (t * (bright ? 255 : 220) + (1 - t) * 3 + grain) | 0;
+        let b = (t * (bright ? 90 : 60)) | 0;
+        if (t < 0.22) {
+          r = 0;
+          g = Math.min(g, 8);
+          b = 0;
+        }
+        out[y * S + x] = packPix(
+          Math.max(0, Math.min(255, r)),
+          Math.max(0, Math.min(255, g)),
+          Math.max(0, Math.min(255, b)),
+          255
+        );
       }
     }
-    furTuft(ctx, 14 + shake, spineY + 4, 5, -2.3, COL.cerbL);
-    furTuft(ctx, 34 + stretch * 0.3 + shake, spineY + 1, 5, -0.5, COL.ashL);
-    furTuft(ctx, 48 + stretch + shake, bodyY - 5, 4, 0.7, COL.cerbH);
-    oval(ctx, 19 + shake, spineY - 1, 3, 2, COL.smoke);
-    oval(ctx, 38 + stretch * 0.3 + shake, spineY - 3, 4, 3, COL.smokeL);
-
-    // Tail ash plume
-    const tx = 7 + shake;
-    const ty = bodyY + (walk ? (w1 ? -2 : 2) : 1);
-    shadeOval(ctx, tx + 3, ty + 1, 5, 4, COL.cerbVD, COL.cerbD, COL.cerb);
-    oval(ctx, tx - 1 + tailSwing * 0.3, ty - 1, 4, 3, COL.cerbD);
-    oval(ctx, tx - 4 + tailSwing * 0.6, ty - 3, 4, 3, COL.smoke);
-    oval(ctx, tx - 7 + tailSwing, ty - 6, 3, 2, COL.smokeL);
-    px(ctx, tx - 8 + tailSwing, ty - 7, COL.ashL);
-
-    // Head — elongated tapered snout
-    const hx = 48 + stretch + shake;
-    const hy = bodyY - 5 + headDip;
-    shadeOval(ctx, hx - 8, hy + 3, 6, 5, COL.cerbVD, COL.cerbD, COL.cerb);
-    furTuft(ctx, hx - 10, hy, 4, -1.9, COL.cerbL);
-    // Angular skull
-    rect(ctx, hx - 6, hy - 3, 11, 8, COL.cerbD);
-    rect(ctx, hx - 5, hy - 2, 9, 6, COL.cerb);
-    px(ctx, hx - 4, hy - 4, COL.cerbH);
-    rect(ctx, hx - 5, hy - 3, 8, 1, COL.cerbL);
-
-    // Ears swept back
-    const earBack = hurt ? 2 : 0;
-    tri(ctx, hx - 6, hy - 1 + earBack, hx - 10, hy - 8 + earBack, hx - 3, hy + 1, COL.cerbD);
-    tri(ctx, hx - 5, hy - 1 + earBack, hx - 9, hy - 7 + earBack, hx - 4, hy, COL.cerbL);
-    tri(ctx, hx + 1, hy - 2 + earBack, hx + 5, hy - 9 + earBack, hx + 5, hy + 1, COL.cerbVD);
-    tri(ctx, hx + 2, hy - 2 + earBack, hx + 5, hy - 8 + earBack, hx + 4, hy, COL.cerb);
-    px(ctx, hx - 9, hy - 6 + earBack, COL.cerbH);
-
-    // Tapered snout wedge (~to x=62)
-    const jawGap = atk ? 6 : 0;
-    tri(ctx, hx + 2, hy - 1, hx + 17, hy + 2, hx + 3, hy + 5, COL.cerb);
-    tri(ctx, hx + 3, hy, hx + 16, hy + 2, hx + 4, hy + 4, COL.cerbL);
-    rect(ctx, hx + 2, hy + 1, 12, 3, COL.cerbD);
-    px(ctx, hx + 16, hy + 2, COL.cerbVD);
-    px(ctx, hx + 17, hy + 2, '#080604');
-    px(ctx, hx + 15, hy + 1, '#080604');
-
-    if (atk) {
-      tri(ctx, hx + 2, hy + 5, hx + 15, hy + 5 + jawGap, hx + 3, hy + 9 + jawGap, COL.cerbD);
-      rect(ctx, hx + 3, hy + 5, 10, jawGap + 1, '#080404');
-      tri(ctx, hx + 4, hy + 4, hx + 5, hy + 12, hx + 6, hy + 4, COL.boneL);
-      tri(ctx, hx + 7, hy + 4, hx + 8, hy + 11, hx + 9, hy + 4, COL.bone);
-      tri(ctx, hx + 10, hy + 4, hx + 11, hy + 10, hx + 12, hy + 4, COL.boneL);
-      tri(ctx, hx + 13, hy + 4, hx + 14, hy + 8, hx + 15, hy + 4, COL.bone);
-      tri(ctx, hx + 5, hy + 9 + jawGap, hx + 6, hy + 5 + jawGap, hx + 7, hy + 9 + jawGap, COL.boneD);
-      tri(ctx, hx + 9, hy + 9 + jawGap, hx + 10, hy + 5 + jawGap, hx + 11, hy + 9 + jawGap, COL.bone);
-      oval(ctx, hx + 13, hy + 6 + jawGap, 6, 3, 'rgba(74,255,138,0.42)');
-      oval(ctx, hx + 17, hy + 5 + jawGap, 4, 2, COL.smokeL);
-      px(ctx, hx + 19, hy + 3 + jawGap, COL.glow);
-      px(ctx, hx + 16, hy + 2 + jawGap, COL.glowSoft);
-      pixelFlame(ctx, hx + 15, hy + 8 + jawGap, 6, COL.glow, '#2a8848', COL.glowSoft);
-    } else {
-      rect(ctx, hx + 3, hy + 4, 12, 1, COL.cerbVD);
-      px(ctx, hx + 6, hy + 4, COL.boneD);
-      px(ctx, hx + 10, hy + 4, COL.boneD);
-      rect(ctx, hx + 3, hy + 5, 10, 2, COL.cerbD);
-    }
-
-    // Eyes: single-pixel pin-glow in deep sockets
-    const eye = hurt ? '#ffffff' : COL.eye;
-    const eg = hurt ? '#ffe8c0' : COL.glowSoft;
-    rect(ctx, hx - 5, hy, 3, 3, '#010201');
-    rect(ctx, hx, hy, 3, 3, '#010201');
-    px(ctx, hx - 4, hy + 1, eye);
-    px(ctx, hx - 3, hy + 1, eg);
-    px(ctx, hx + 1, hy + 1, eye);
-    px(ctx, hx + 2, hy + 1, eg);
-
-    px(ctx, hx - 6, hy - 3, COL.cerbVD);
-    px(ctx, hx + 16, hy + 2, COL.cerbVD);
-    px(ctx, bx0, bellyY, COL.cerbVD);
-    px(ctx, bx1 - 2, bodyY, COL.cerbVD);
-
-    if (hurt) {
-      hurtSparks(ctx, [
-        [hx + 5, hy - 5], [14 + shake, spineY], [36 + shake, bodyY - 7],
-        [hx - 8, hy + 2], [22 + shake, bellyY], [48 + stretch + shake, bodyY - 4],
-        [tx - 4, ty - 4], [hx + 12, hy],
-      ]);
-    }
+    return out;
   }
 
   ST3.Art = {
@@ -879,6 +884,9 @@
     drawPixelWord,
     drawGreenPuddle,
     drawMonkFrame,
-    drawHoundFrame,
+    MONK_PALETTES,
+    resolveMonkPalette,
+    genPavementTex,
+    genDreamMarbleTex,
   };
 })(window.ST3 = window.ST3 || {});

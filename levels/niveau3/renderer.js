@@ -14,13 +14,62 @@
   let screen = null;
   let sctx = null;
   let zBuffer = null;
+  let frameImg = null;
+  let pix32 = null;
+  let floorTex = null; // Uint32Array — world-anchored pavement
+  let ceilTex = null; // Uint32Array — liquid marble
+  let ceilTexBright = null;
+  let floorTexSize = 64;
+  let ceilTexSize = 128;
+  const FOG_R = 4;
+  const FOG_G = 20;
+  const FOG_B = 12;
   let spriteCache = {};
   let ambient = [];
   let ambientT = 0;
+  const FX_POOL_SIZE = 80;
   let fxParticles = [];
   let lastFxDt = 0.016;
   let lastAmpBass = 0;
   let camShake = 0;
+  let ampSparkAudioCd = 0;
+
+  function makeFxSlot() {
+    return {
+      alive: false,
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      tex: null,
+      scale: 0.18,
+    };
+  }
+
+  function initFxPool() {
+    fxParticles = [];
+    for (let i = 0; i < FX_POOL_SIZE; i++) {
+      fxParticles.push(makeFxSlot());
+    }
+  }
+
+  function acquireFx() {
+    for (let i = 0; i < fxParticles.length; i++) {
+      if (!fxParticles[i].alive) return fxParticles[i];
+    }
+    if (fxParticles.length < MAX_FX) {
+      const slot = makeFxSlot();
+      fxParticles.push(slot);
+      return slot;
+    }
+    // Pool full — recycle shortest-lived (parity with old splice-oldest)
+    let best = 0;
+    for (let i = 1; i < fxParticles.length; i++) {
+      if (fxParticles[i].life < fxParticles[best].life) best = i;
+    }
+    return fxParticles[best];
+  }
 
   function Art() {
     return ST3.Art;
@@ -37,9 +86,14 @@
     bctx.imageSmoothingEnabled = false;
     zBuffer = new Float32Array(VW);
     ST3.Raycaster.initTextures();
+    ST3.Engine3D.init();
+    const fb = ST3.Engine3D.ensureFrameBuffer(VW, VH);
+    frameImg = fb.img;
+    pix32 = fb.pix32;
+    initFloorCeilingTextures();
     buildSprites();
     initAmbient();
-    fxParticles = [];
+    initFxPool();
     lastAmpBass = 0;
     camShake = 0;
     resize();
@@ -64,12 +118,9 @@
     return c;
   }
 
-  /* Monk / hound frames live in art.js (AAA silhouette craft) */
-  function drawMonkFrame(ctx, pose) {
-    Art().drawMonkFrame(ctx, pose);
-  }
-  function drawHoundFrame(ctx, pose) {
-    Art().drawHoundFrame(ctx, pose);
+  /* Monk frames live in art.js (AAA silhouette craft + variant palettes) */
+  function drawMonkFrame(ctx, pose, palette) {
+    Art().drawMonkFrame(ctx, pose, palette);
   }
 
   /* ─── Boss: awakened seal orb ─── */
@@ -594,17 +645,28 @@
 
   function buildSprites() {
     const poses = ['idle', 'walk0', 'walk1', 'attack', 'hurt'];
+    const variants = ['ash', 'riff', 'smoke', 'somnul'];
     spriteCache.monk = {};
-    spriteCache.hound = {};
     spriteCache.boss = {};
+    for (let v = 0; v < variants.length; v++) {
+      const variant = variants[v];
+      const palette = Art().resolveMonkPalette(variant);
+      spriteCache.monk[variant] = {};
+      for (let i = 0; i < poses.length; i++) {
+        const pose = poses[i];
+        spriteCache.monk[variant][pose] = makeSprite(function (ctx) {
+          drawMonkFrame(ctx, pose, palette);
+        });
+      }
+    }
+    // Legacy flat poses → ash (any old callers)
+    spriteCache.monk.idle = spriteCache.monk.ash.idle;
+    spriteCache.monk.walk0 = spriteCache.monk.ash.walk0;
+    spriteCache.monk.walk1 = spriteCache.monk.ash.walk1;
+    spriteCache.monk.attack = spriteCache.monk.ash.attack;
+    spriteCache.monk.hurt = spriteCache.monk.ash.hurt;
     for (let i = 0; i < poses.length; i++) {
       const pose = poses[i];
-      spriteCache.monk[pose] = makeSprite(function (ctx) {
-        drawMonkFrame(ctx, pose);
-      });
-      spriteCache.hound[pose] = makeSprite(function (ctx) {
-        drawHoundFrame(ctx, pose);
-      });
       spriteCache.boss[pose] = makeSprite(function (ctx) {
         drawBossFrame(ctx, pose);
       });
@@ -640,6 +702,9 @@
     }, 16);
     spriteCache.sparkGold = makeSprite(function (ctx) {
       drawSparkSprite(ctx, '#ffe89a');
+    }, 16);
+    spriteCache.sparkWhite = makeSprite(function (ctx) {
+      drawSparkSprite(ctx, '#ffffff');
     }, 16);
     spriteCache.sparkCorrupt = makeSprite(function (ctx) {
       drawSparkSprite(ctx, '#c8b060');
@@ -714,34 +779,39 @@
       if (kind === 'mist') tex = color === 'corrupt' ? spriteCache.mistCorrupt : spriteCache.mistGreen;
       else if (kind === 'gold') tex = spriteCache.goldShard;
       else if (color === 'gold' || color === '#c8a040' || color === '#ffe89a') tex = spriteCache.sparkGold;
+      else if (color === 'white' || color === '#ffffff') tex = spriteCache.sparkWhite;
       else if (color === 'corrupt' || color === '#c8b060') tex = spriteCache.sparkCorrupt;
       else if (kind === 'mixed') {
         tex = i % 3 === 0 ? spriteCache.goldShard : i % 2 === 0 ? spriteCache.sparkGreen : spriteCache.mistGreen;
       }
       if (!tex) tex = spriteCache.sparkGreen;
       if (!tex) continue;
-      fxParticles.push({
-        x: x + (Math.random() - 0.5) * 0.15,
-        y: y + (Math.random() - 0.5) * 0.15,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        life: lifeBase * (0.6 + Math.random() * 0.8),
-        tex: tex,
-        scale: opts.scale || (kind === 'mist' ? 0.28 : 0.18),
-      });
+      const p = acquireFx();
+      if (!p) continue;
+      p.alive = true;
+      p.x = x + (Math.random() - 0.5) * 0.15;
+      p.y = y + (Math.random() - 0.5) * 0.15;
+      p.vx = Math.cos(ang) * spd;
+      p.vy = Math.sin(ang) * spd;
+      p.life = lifeBase * (0.6 + Math.random() * 0.8);
+      p.tex = tex;
+      p.scale = opts.scale || (kind === 'mist' ? 0.28 : 0.18);
     }
-    if (fxParticles.length > MAX_FX) fxParticles.splice(0, fxParticles.length - MAX_FX);
   }
 
   function updateFxParticles(dt) {
-    for (let i = fxParticles.length - 1; i >= 0; i--) {
+    for (let i = 0; i < fxParticles.length; i++) {
       const p = fxParticles[i];
+      if (!p.alive) continue;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vx *= 0.92;
       p.vy *= 0.92;
       p.life -= dt;
-      if (p.life <= 0) fxParticles.splice(i, 1);
+      if (p.life <= 0) {
+        p.alive = false;
+        p.tex = null;
+      }
     }
   }
 
@@ -808,68 +878,161 @@
     }
   }
 
-  function drawFloorCeiling(animT) {
-    const gradC = bctx.createLinearGradient(0, 0, 0, VH / 2);
-    gradC.addColorStop(0, '#020806');
-    gradC.addColorStop(0.45, '#06140c');
-    gradC.addColorStop(1, '#0a1c12');
-    bctx.fillStyle = gradC;
-    bctx.fillRect(0, 0, VW, VH / 2);
+  function initFloorCeilingTextures() {
+    const Art = ST3.Art;
+    floorTex = Art.genPavementTex();
+    floorTexSize = Math.sqrt(floorTex.length) | 0;
+    ceilTex = Art.genDreamMarbleTex({ size: 128 });
+    ceilTexBright = Art.genDreamMarbleTex({ size: 128, bright: true });
+    ceilTexSize = Math.sqrt(ceilTex.length) | 0;
+  }
 
-    bctx.fillStyle = 'rgba(0,0,0,0.35)';
-    for (let bx = 24; bx < VW; bx += 48) {
-      bctx.fillRect(bx, 4, 18, 28);
-      bctx.fillRect(bx + 2, 6, 14, 3);
-      bctx.fillRect(bx + 4, 12, 4, 4);
-      bctx.fillRect(bx + 10, 12, 4, 4);
-      bctx.fillRect(bx + 4, 20, 4, 4);
-      bctx.fillRect(bx + 10, 20, 4, 4);
-    }
-    bctx.fillStyle = 'rgba(8,24,14,0.55)';
-    bctx.fillRect(0, 18, VW, 2);
-    bctx.fillRect(0, 42, VW, 1);
-    const vigC = bctx.createRadialGradient(VW / 2, VH * 0.15, 20, VW / 2, VH * 0.15, VW * 0.55);
-    vigC.addColorStop(0, 'rgba(4,20,12,0)');
-    vigC.addColorStop(1, 'rgba(2,8,6,0.55)');
-    bctx.fillStyle = vigC;
-    bctx.fillRect(0, 0, VW, VH / 2);
+  /**
+   * Lodev-style world-anchored floor/ceiling cast into pix32 (before walls).
+   * Floor = pavement UV from world. Ceiling = marble UV scroll; sealDream boosts green.
+   */
+  function castFloorCeiling(pix32, player, animT, dream) {
+    if (!pix32 || !player || !floorTex || !ceilTex) return;
 
-    const gradF = bctx.createLinearGradient(0, VH / 2, 0, VH);
-    gradF.addColorStop(0, '#081410');
-    gradF.addColorStop(0.5, '#0e2218');
-    gradF.addColorStop(1, '#142c1c');
-    bctx.fillStyle = gradF;
-    bctx.fillRect(0, VH / 2, VW, VH / 2);
+    const halfTan =
+      (ST3.Engine3D && ST3.Engine3D.HALF_TAN) || Math.tan(Math.PI / 6);
+    const focal = (VW * 0.5) / halfTan;
+    const eyeH = 0.5;
+    const posX = player.x;
+    const posY = player.y;
+    const dirX = player.dirX;
+    const dirY = player.dirY;
+    const planeX = player.planeX;
+    const planeY = player.planeY;
+    const halfH = (VH * 0.5) | 0;
+    const dreamAmt = dream == null ? 0.15 : dream;
+    const intensity = dreamAmt < 0 ? 0 : dreamAmt > 1 ? 1 : dreamAmt;
+    const t = animT || 0;
+    // Scroll speeds — dream accelerates swirl
+    const scrollU = 0.05 + intensity * 0.1;
+    const scrollV = 0.035 + intensity * 0.08;
+    const scrollU2 = -0.03 - intensity * 0.06;
+    const scrollV2 = 0.045 + intensity * 0.07;
+    // Large world-space swirls (low scale = bigger marble eddies)
+    const ceilScale = 0.22;
+    const blendDream = 0.3 + intensity * 0.55;
+    const fts = floorTexSize;
+    const ftsMask = fts - 1;
+    const cts = ceilTexSize;
+    const ctsMask = cts - 1;
+    const fogR = FOG_R;
+    const fogG = FOG_G;
+    const fogB = FOG_B;
+    const invFog = 1 / FOG_MAX;
+    const ft = floorTex;
+    const ct = ceilTex;
+    const ctb = ceilTexBright || ceilTex;
+    const rayOffX = dirX - planeX;
+    const rayOffY = dirY - planeY;
+    const raySpanX = planeX * 2;
+    const raySpanY = planeY * 2;
 
-    bctx.fillStyle = 'rgba(0,0,0,0.18)';
-    for (let y = VH / 2; y < VH; y += 3) {
-      bctx.fillRect(0, y, VW, 1);
-    }
-    bctx.fillStyle = 'rgba(30,70,45,0.08)';
-    for (let y = VH / 2 + 1; y < VH; y += 6) {
-      bctx.fillRect(0, y, VW, 1);
-    }
+    let y, x, row, rowDist, leftX, leftY, stepX, stepY, curX, curY;
+    let fx, fy, tx, ty, packed, pr, pg, pb, shade, r, g, b, fog;
+    let u1, v1, u2, v2, p2, r2, g2, b2, mix;
 
-    const emberSeed = (animT * 3) | 0;
-    bctx.fillStyle = 'rgba(74,255,138,0.22)';
-    for (let i = 0; i < 18; i++) {
-      const ex = ((i * 47 + emberSeed * 13) % (VW - 4)) | 0;
-      const ey = (VH / 2 + 8 + ((i * 29 + emberSeed * 7) % (VH / 2 - 16))) | 0;
-      if ((i + emberSeed) % 5 === 0) {
-        bctx.fillRect(ex, ey, 1, 1);
-        if ((i + emberSeed) % 11 === 0) {
-          bctx.fillStyle = 'rgba(191,255,200,0.35)';
-          bctx.fillRect(ex, ey - 1, 1, 1);
-          bctx.fillStyle = 'rgba(74,255,138,0.22)';
-        }
+    // —— Floor: y = VH/2 .. VH-1 ——
+    for (y = halfH; y < VH; y++) {
+      rowDist = (eyeH * focal) / (y + 0.5 - halfH);
+      fog = 1 - rowDist * invFog;
+      if (fog < 0.12) fog = 0.12;
+      else if (fog > 1) fog = 1;
+      shade = fog;
+      leftX = posX + rowDist * rayOffX;
+      leftY = posY + rowDist * rayOffY;
+      stepX = (rowDist * raySpanX) / VW;
+      stepY = (rowDist * raySpanY) / VW;
+      curX = leftX + stepX * 0.5;
+      curY = leftY + stepY * 0.5;
+      row = y * VW;
+      for (x = 0; x < VW; x++) {
+        fx = curX - Math.floor(curX);
+        fy = curY - Math.floor(curY);
+        tx = (fx * fts) | 0;
+        ty = (fy * fts) | 0;
+        if (tx < 0) tx = 0;
+        else if (tx > ftsMask) tx = ftsMask;
+        if (ty < 0) ty = 0;
+        else if (ty > ftsMask) ty = ftsMask;
+        packed = ft[ty * fts + tx];
+        pr = packed & 255;
+        pg = (packed >>> 8) & 255;
+        pb = (packed >>> 16) & 255;
+        r = (pr * shade + fogR * (1 - shade) + 0.5) | 0;
+        g = (pg * shade + fogG * (1 - shade) + 0.5) | 0;
+        b = (pb * shade + fogB * (1 - shade) + 0.5) | 0;
+        pix32[row + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+        curX += stepX;
+        curY += stepY;
       }
     }
 
-    const vigF = bctx.createRadialGradient(VW / 2, VH * 0.85, 10, VW / 2, VH * 0.75, VW * 0.6);
-    vigF.addColorStop(0, 'rgba(4,20,12,0)');
-    vigF.addColorStop(1, 'rgba(2,10,6,0.5)');
-    bctx.fillStyle = vigF;
-    bctx.fillRect(0, VH / 2, VW, VH / 2);
+    // —— Ceiling: UV scroll only; world-anchored ——
+    for (y = 0; y < halfH; y++) {
+      rowDist = (eyeH * focal) / (halfH - (y + 0.5));
+      fog = 1 - rowDist * invFog;
+      if (fog < 0.12) fog = 0.12;
+      else if (fog > 1) fog = 1;
+      shade = fog;
+      leftX = posX + rowDist * rayOffX;
+      leftY = posY + rowDist * rayOffY;
+      stepX = (rowDist * raySpanX) / VW;
+      stepY = (rowDist * raySpanY) / VW;
+      curX = leftX + stepX * 0.5;
+      curY = leftY + stepY * 0.5;
+      row = y * VW;
+      for (x = 0; x < VW; x++) {
+        u1 = curX * ceilScale + t * scrollU;
+        v1 = curY * ceilScale + t * scrollV;
+        u1 = u1 - Math.floor(u1);
+        v1 = v1 - Math.floor(v1);
+        tx = (u1 * cts) | 0;
+        ty = (v1 * cts) | 0;
+        if (tx < 0) tx = 0;
+        else if (tx > ctsMask) tx = ctsMask;
+        if (ty < 0) ty = 0;
+        else if (ty > ctsMask) ty = ctsMask;
+        packed = ct[ty * cts + tx];
+        pr = packed & 255;
+        pg = (packed >>> 8) & 255;
+        pb = (packed >>> 16) & 255;
+
+        u2 = curX * ceilScale * 1.25 + t * scrollU2;
+        v2 = curY * ceilScale * 1.25 + t * scrollV2;
+        u2 = u2 - Math.floor(u2);
+        v2 = v2 - Math.floor(v2);
+        tx = (u2 * cts) | 0;
+        ty = (v2 * cts) | 0;
+        if (tx < 0) tx = 0;
+        else if (tx > ctsMask) tx = ctsMask;
+        if (ty < 0) ty = 0;
+        else if (ty > ctsMask) ty = ctsMask;
+        p2 = ctb[ty * cts + tx];
+        r2 = p2 & 255;
+        g2 = (p2 >>> 8) & 255;
+        b2 = (p2 >>> 16) & 255;
+        mix = blendDream;
+        pr = (pr + (r2 - pr) * mix + 0.5) | 0;
+        pg = (pg + (g2 - pg) * mix + 0.5) | 0;
+        pb = (pb + (b2 - pb) * mix + 0.5) | 0;
+        if (intensity > 0.05) {
+          pg = (pg + (255 - pg) * intensity * 0.28 + 0.5) | 0;
+          pr = (pr * (1 - intensity * 0.12) + 0.5) | 0;
+        }
+
+        r = (pr * shade + fogR * (1 - shade) + 0.5) | 0;
+        g = (pg * shade + fogG * (1 - shade) + 0.5) | 0;
+        b = (pb * shade + fogB * (1 - shade) + 0.5) | 0;
+        pix32[row + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+        curX += stepX;
+        curY += stepY;
+      }
+    }
   }
 
   /** Screen-space occult slash arcs during melee (Doom/Dusk swipe feel) */
@@ -1210,14 +1373,18 @@
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e.alive || e.kind === 'boss') continue;
-      const frames = e.kind === 'hound' ? spriteCache.hound : spriteCache.monk;
+      const variant = e.variant || 'ash';
+      const frames =
+        (spriteCache.monk && spriteCache.monk[variant]) ||
+        (spriteCache.monk && spriteCache.monk.ash) ||
+        spriteCache.monk;
       const tex = safeSpriteTex(frames, e, spriteCache.seal);
       if (!tex) continue;
       list.push({
         x: e.x,
         y: e.y,
         tex: tex,
-        scale: e.kind === 'hound' ? 0.75 : 0.95,
+        scale: 0.95,
         kind: e.kind,
         vBob: walkScreenBob(e),
       });
@@ -1258,7 +1425,7 @@
 
     for (let i = 0; i < fxParticles.length; i++) {
       const p = fxParticles[i];
-      if (!p.tex) continue;
+      if (!p.alive || !p.tex) continue;
       list.push({
         x: p.x,
         y: p.y,
@@ -1306,6 +1473,14 @@
       return db - da;
     });
 
+    // Lock projection to Engine3D FOV (HALF_TAN≈0.577). Player plane must match;
+    // if it drifts, rescale transformX so screen X still aligns with walls.
+    const halfTan =
+      (ST3.Engine3D && ST3.Engine3D.HALF_TAN) || Math.tan(Math.PI / 6);
+    const planeLen = Math.hypot(planeX, planeY) || halfTan;
+    const focal = (VW * 0.5) / halfTan;
+    const planeToFov = planeLen / halfTan;
+
     for (let i = 0; i < sprites.length; i++) {
       const sp = sprites[i];
       if (!sp.tex) continue;
@@ -1317,13 +1492,14 @@
       const transformY = invDet * (-planeY * sx + planeX * sy);
       if (!(transformY > 0.05) || !Number.isFinite(transformY)) continue;
 
-      const spriteScreenX = ((VW / 2) * (1 + transformX / transformY)) | 0;
+      // transformX is in "plane units"; convert to engine cam.x/halfTan for FOV lock
+      const spriteScreenX = ((VW / 2) * (1 + (transformX * planeToFov) / transformY)) | 0;
       const baseScale = sp.scale || 1;
       const scaleY = sp.scaleY != null ? sp.scaleY : baseScale;
       const scaleX = sp.scaleX != null ? sp.scaleX : baseScale;
-      const spriteH = (Math.abs(VH / transformY) * scaleY) | 0;
+      const spriteH = (Math.abs(focal / transformY) * scaleY) | 0;
       if (spriteH < 1) continue;
-      const spriteW = Math.max(1, (Math.abs(VH / transformY) * scaleX) | 0);
+      const spriteW = Math.max(1, (Math.abs(focal / transformY) * scaleX) | 0);
       // bobY: pickup float (scaled with spriteH). vBob: walk foot-plant (screen px).
       // floorBias: push toward floor (puddles) — fraction of spriteH downward.
       const floorPush = sp.floorBias ? ((spriteH * sp.floorBias) | 0) : 0;
@@ -1369,14 +1545,16 @@
       sctx.fillRect(0, 0, VW, VH);
     }
 
-    sctx.fillStyle = 'rgba(0,0,0,0.06)';
-    for (let y = 0; y < VH; y += 2) {
+    // Soft scanlines — keep subtle so world floor/ceiling stay readable
+    sctx.fillStyle = 'rgba(0,0,0,0.035)';
+    for (let y = 0; y < VH; y += 3) {
       sctx.fillRect(0, y, VW, 1);
     }
 
     if (state.nearSeal && (state.phase === 'play' || state.phase === 'sealBoss')) {
-      const pulse = 0.04 + Math.sin((state.animT || 0) * 6) * 0.03;
-      const flicker = Math.random() < 0.08 ? 0.05 : 0;
+      const dreamScale = 0.35 + (state.sealDream || 0.2) * 0.65;
+      const pulse = (0.04 + Math.sin((state.animT || 0) * 6) * 0.03) * dreamScale;
+      const flicker = Math.random() < 0.08 ? 0.05 * dreamScale : 0;
       sctx.fillStyle = 'rgba(74,255,138,' + (pulse + flicker).toFixed(3) + ')';
       sctx.fillRect(0, 0, VW, VH);
     }
@@ -1392,33 +1570,115 @@
     camShake = Math.max(camShake, amount || 4);
   }
 
+  /** Force weapon + melee flash paths once (loading warmup). */
+  function warmCombat() {
+    if (!bctx) return;
+    const dummy = {
+      moving: false,
+      ammo: 12,
+      muzzleFlash: 0.34,
+      meleeFlash: 0,
+      attackFlash: 0.2,
+    };
+    drawWeapon(dummy, 0.1);
+    dummy.muzzleFlash = 0;
+    dummy.ammo = 0;
+    dummy.meleeFlash = 0.38;
+    drawWeapon(dummy, 0.1);
+    drawMeleeSlashArcs(dummy, 0.1);
+    // Seed a few pooled particles so acquire path is hot
+    if (spriteCache.sparkGreen) {
+      spawnParticles(0, 0, '#5aff9a', 8, { kind: 'mixed', spread: 1.2, life: 0.2 });
+      for (let i = 0; i < fxParticles.length; i++) {
+        fxParticles[i].alive = false;
+        fxParticles[i].tex = null;
+      }
+    }
+  }
+
+  /**
+   * Short-circuit sparks on wrecked amp cabinets (ids 12–14).
+   * World-anchored particle bursts + occasional crackle SFX when close.
+   */
+  function updateAmpSparks(player, animT, dt) {
+    const list = ST3.Map && ST3.Map.wreckedAmps;
+    if (!list || !list.length || !player) return;
+    if (ampSparkAudioCd > 0) ampSparkAudioCd -= dt;
+
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const dx = a.x - player.x;
+      const dy = a.y - player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 7.5) continue;
+
+      // Stuttering electrical cadence (phase-offset per cabinet)
+      const t = animT + (a.phase || 0);
+      const burst = Math.sin(t * 11.3) * Math.sin(t * 3.7 + a.cx);
+      const leak = Math.sin(t * 2.1 + a.cy * 0.7);
+      if (burst < 0.78 && leak < 0.55) continue;
+
+      // Nudge spawn toward player so sparks sit on the visible face
+      const inv = dist > 0.05 ? 0.42 / dist : 0;
+      const sx = a.x - dx * inv;
+      const sy = a.y - dy * inv;
+
+      const near = 1 - dist / 7.5;
+      const n = burst > 0.92 ? 4 + ((near * 3) | 0) : 1 + ((near * 2) | 0);
+      spawnParticles(sx, sy, burst > 0.9 ? 'white' : '#ffe89a', n, {
+        kind: 'spark',
+        spread: 0.9 + near * 1.4,
+        life: 0.12 + near * 0.18,
+        scale: 0.12 + near * 0.1,
+      });
+      if (burst > 0.88 && near > 0.35) {
+        spawnParticles(sx, sy, '#5aff9a', 1 + ((near * 2) | 0), {
+          kind: 'spark',
+          spread: 0.7,
+          life: 0.16,
+          scale: 0.1,
+        });
+      }
+
+      // Soft crackle when very close to a hard burst
+      if (dist < 3.2 && burst > 0.9 && ampSparkAudioCd <= 0 && ST3.Audio && ST3.Audio.sfx && ST3.Audio.sfx.ampSpark) {
+        ST3.Audio.sfx.ampSpark(0.04 + near * 0.08);
+        ampSparkAudioCd = 0.22 + Math.random() * 0.35;
+      }
+    }
+  }
+
   function frame(state) {
-    if (!bctx || !state.player) return;
+    if (!bctx || !state.player || !pix32 || !frameImg) return;
     const p = state.player;
     const animT = state.animT || 0;
     bctx.imageSmoothingEnabled = false;
 
     updateAmbient(lastFxDt);
+    if (state.phase === 'play' || state.phase === 'sealBoss') {
+      updateAmpSparks(p, animT, lastFxDt);
+    }
 
-    drawFloorCeiling(animT);
-    const wallFx = ST3.Raycaster.renderWalls(
-      bctx,
-      VW,
-      VH,
-      p.x,
-      p.y,
-      p.dirX,
-      p.dirY,
-      p.planeX,
-      p.planeY,
-      zBuffer,
-      FOG_MAX,
-      animT
-    );
+    // 1) World-anchored floor/ceiling cast into pix32 (before walls)
+    castFloorCeiling(pix32, p, animT, state.sealDream);
+    // 2) Raster walls into same buffer
+    const wallFx = ST3.Engine3D.render(pix32, VW, VH, p, zBuffer, FOG_MAX, animT);
     lastAmpBass = wallFx && wallFx.ampBass ? wallFx.ampBass : 0;
+    // 3) Single blit of world pixels, then sprites / HUD on top via canvas
+    bctx.putImageData(frameImg, 0, 0);
+    if (wallFx && wallFx.stamp) {
+      bctx.fillStyle = '#5aff9a';
+      bctx.font = '8px monospace';
+      bctx.fillText(ST3.Engine3D.VERSION, 3, 9);
+    }
     renderSprites(p, collectSprites(state));
     drawAmbient();
-    if (state.phase === 'play' || state.phase === 'sealBoss') {
+    if (
+      state.phase === 'play' ||
+      state.phase === 'sealBoss' ||
+      state.phase === 'intro' ||
+      state.phase === 'tutorial'
+    ) {
       drawWeapon(p, animT);
       drawMeleeSlashArcs(p, animT);
     }
@@ -1460,6 +1720,7 @@
     init,
     resize,
     frame,
+    warmCombat,
     spawnParticles,
     updateParticles,
     addShake,
