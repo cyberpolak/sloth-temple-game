@@ -292,20 +292,38 @@ for(let i=0;i<12;i++){
 
 
 // ============================================================
-//  SOMNUL
+//  SOMNUL — squelette hiérarchique + FX
 // ============================================================
 const somnul=new THREE.Group();
 const matFour=ps1ify(new THREE.MeshLambertMaterial({ map:texFourrure }));
 const matGriffe=matCol(0xb8a878);
+const matMousse=ps1ify(new THREE.MeshLambertMaterial({ color:0x4aff8a, emissive:0x2a8a4a, emissiveIntensity:0.8, transparent:true, opacity:0.85 }));
 
-const corps=new THREE.Mesh(new THREE.SphereGeometry(3.2,10,8),matFour);
-corps.scale.set(1,1.25,0.9); corps.position.y=4.6; corps.rotation.x=0.25;
-somnul.add(corps);
-const ventreS=new THREE.Mesh(new THREE.SphereGeometry(2.4,9,7),matCol(0x5c5444));
-ventreS.position.set(0,4.0,1.4); ventreS.scale.set(1,1.15,0.55);
-somnul.add(ventreS);
+/** Root pose helpers */
+const SOMNUL_IDLE_Y=0.5;
+let somnulAnimLock=false;
+let somnulIntroDone=false;
+
+const torsoG=new THREE.Group();
+torsoG.position.y=0;
+somnul.add(torsoG);
+
+const corps=new THREE.Mesh(new THREE.SphereGeometry(3.0,10,8),matFour);
+corps.scale.set(1.05,1.12,0.92); corps.position.set(0,4.0,0); corps.rotation.x=0.18;
+torsoG.add(corps);
+const ventreS=new THREE.Mesh(new THREE.SphereGeometry(2.2,9,7),matCol(0x5c5444));
+ventreS.position.set(0,3.5,1.55); ventreS.scale.set(1,1.1,0.52);
+torsoG.add(ventreS);
+
+const couG=new THREE.Group();
+couG.position.set(0,7.15,0.35);
+torsoG.add(couG);
+const couMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.85,1.15,1.4,8),matFour);
+couMesh.position.y=0.55; couG.add(couMesh);
 
 const teteS=new THREE.Group();
+teteS.position.set(0,1.55,0.35); teteS.rotation.x=0.08;
+couG.add(teteS);
 const craneS=new THREE.Mesh(new THREE.SphereGeometry(1.35,10,8),matFour);
 craneS.scale.set(1,0.95,0.95); teteS.add(craneS);
 const museau=new THREE.Mesh(new THREE.SphereGeometry(0.7,8,6),matCol(0x6a6050));
@@ -322,40 +340,540 @@ const yeux=[];
   oeil.position.set(s*0.5,0.18,1.28);
   teteS.add(oeil); yeux.push(oeil);
 });
-const sourireS=new THREE.Mesh(new THREE.TorusGeometry(0.32,0.05,4,8,Math.PI),matCol(0x1a1410));
-sourireS.position.set(0,-0.55,1.45); sourireS.rotation.x=Math.PI;
-teteS.add(sourireS);
-teteS.position.set(0,8.3,1.2); teteS.rotation.x=0.1;
-somnul.add(teteS);
+const machoires=new THREE.Group();
+machoires.position.set(0,-0.35,0.9);
+teteS.add(machoires);
+const sourireS=new THREE.Mesh(new THREE.TorusGeometry(0.38,0.05,4,10,Math.PI),matCol(0x1a1410));
+sourireS.position.set(0,-0.15,0.55); sourireS.rotation.x=Math.PI;
+machoires.add(sourireS);
 
-function brasSomnul(side){
-  const g=new THREE.Group();
-  const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.5,4.4,7),matFour);
-  haut.position.y=-2.2; g.add(haut);
-  const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.48,0.4,3.8,7),matFour);
-  avant.position.y=-6.0; g.add(avant);
+function makeBrasSomnul(side){
+  const shoulder=new THREE.Group();
+  shoulder.position.set(side*2.75,6.55,0.2);
+  shoulder.rotation.z=side*0.42;
+  shoulder.rotation.x=-0.25;
+  torsoG.add(shoulder);
+
+  const upper=new THREE.Group();
+  shoulder.add(upper);
+  const upperMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.52,2.6,7),matFour);
+  upperMesh.position.y=-1.25; upper.add(upperMesh);
+
+  const elbow=new THREE.Group();
+  elbow.position.y=-2.55;
+  elbow.rotation.x=-0.55;
+  upper.add(elbow);
+  const foreMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.38,2.8,7),matFour);
+  foreMesh.position.y=-1.35; elbow.add(foreMesh);
+
+  const wrist=new THREE.Group();
+  wrist.position.y=-2.85;
+  elbow.add(wrist);
+  const claws=[];
   for(let i=0;i<3;i++){
-    const griffe=new THREE.Mesh(new THREE.ConeGeometry(0.16,1.6,5),matGriffe);
-    griffe.position.set((i-1)*0.35,-8.4,0.1);
-    griffe.rotation.x=Math.PI*0.92;
-    g.add(griffe);
+    const griffe=new THREE.Mesh(new THREE.ConeGeometry(0.15,1.55,5),matGriffe);
+    griffe.position.set((i-1)*0.32, -0.55, 0.12);
+    griffe.rotation.x=Math.PI*0.88+(i-1)*0.08;
+    wrist.add(griffe);
+    claws.push(griffe);
   }
-  g.position.set(side*2.9,7.2,0.4);
-  g.rotation.z=side*0.35;
-  somnul.add(g);
-  return g;
+  return { shoulder, upper, elbow, wrist, claws };
 }
-const brasSG=brasSomnul(-1), brasSD=brasSomnul(1);
+const brasSG=makeBrasSomnul(-1), brasSD=makeBrasSomnul(1);
+
+const jambes=[];
 [-1,1].forEach(s=>{
-  const patte=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.95,2.4,7),matFour);
-  patte.position.set(s*1.6,1.2,0);
-  somnul.add(patte);
+  const hip=new THREE.Group();
+  hip.position.set(s*1.45,2.35,0.1);
+  torsoG.add(hip);
+  const thigh=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.75,1.5,7),matFour);
+  thigh.position.y=-0.7; hip.add(thigh);
+  const knee=new THREE.Group();
+  knee.position.y=-1.45;
+  hip.add(knee);
+  const shin=new THREE.Mesh(new THREE.CylinderGeometry(0.72,0.9,1.35,7),matFour);
+  shin.position.y=-0.55; knee.add(shin);
+  jambes.push({ hip, knee });
 });
+
 const lumSomnul=new THREE.PointLight(0x4aff8a,1.8,30,1.4);
-lumSomnul.position.set(0,9,3); somnul.add(lumSomnul);
-somnul.scale.set(1.8,1.8,1.8);
-somnul.position.set(0,-16,-10);
+lumSomnul.position.set(0,9.5,3); somnul.add(lumSomnul);
+
+/** FX pool (spores / mist / sparks) */
+const fxPool=[];
+const fxRoot=new THREE.Group();
+scene.add(fxRoot);
+for(let i=0;i<28;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.18+Math.random()*0.22,5,4), matMousse.clone());
+  m.visible=false;
+  fxRoot.add(m);
+  fxPool.push({ mesh:m, life:0, max:1, vx:0, vy:0, vz:0 });
+}
+function burstFX(origin, n, opts){
+  opts=opts||{};
+  const col=opts.color||0x4aff8a;
+  let used=0;
+  for(let i=0;i<fxPool.length && used<n;i++){
+    const p=fxPool[i];
+    if(p.life>0) continue;
+    p.mesh.visible=true;
+    p.mesh.material.color.setHex(col);
+    p.mesh.material.emissive.setHex(opts.emissive||0x2a8a4a);
+    p.mesh.material.opacity=opts.opacity!=null?opts.opacity:0.9;
+    p.mesh.position.copy(origin);
+    p.mesh.scale.setScalar(opts.scale||1);
+    p.max=opts.life||0.9;
+    p.life=p.max;
+    const spread=opts.spread||1.2;
+    p.vx=(Math.random()-0.5)*spread;
+    p.vy=opts.up!=null?opts.up: (0.6+Math.random()*1.4);
+    p.vz=(Math.random()-0.5)*spread;
+    used++;
+  }
+}
+function updateFX(dt){
+  for(let i=0;i<fxPool.length;i++){
+    const p=fxPool[i];
+    if(p.life<=0) continue;
+    p.life-=dt;
+    if(p.life<=0){ p.mesh.visible=false; continue; }
+    p.mesh.position.x+=p.vx*dt;
+    p.mesh.position.y+=p.vy*dt;
+    p.mesh.position.z+=p.vz*dt;
+    p.vy-=0.8*dt;
+    const k=p.life/p.max;
+    p.mesh.material.opacity=Math.max(0,k*0.9);
+    p.mesh.scale.setScalar(0.6+k*0.8);
+  }
+  updateBolts(dt);
+}
+
+/** Projectiles / ondes d'attaque — formes doom impactantes (pas de torus "curly") */
+const boltPool=[];
+const _boltFrom=new THREE.Vector3();
+const _boltTo=new THREE.Vector3();
+const _boltMid=new THREE.Vector3();
+const _boltDir=new THREE.Vector3();
+const _boltQuat=new THREE.Quaternion();
+const _boltFwd=new THREE.Vector3(0,0,1);
+const _boltCam=new THREE.Vector3();
+const _boltSpinQ=new THREE.Quaternion();
+const _boltAxisX=new THREE.Vector3(1,0,0);
+const _tmpScale=new THREE.Vector3();
+
+function makeBoltMat(hex, em, opac){
+  return ps1ify(new THREE.MeshLambertMaterial({
+    color:hex, emissive:em||hex, emissiveIntensity:1.35,
+    transparent:true, opacity:opac!=null?opac:0.92,
+    depthWrite:false, side:THREE.DoubleSide
+  }));
+}
+
+/** Géométries partagées lisibles:
+ *  wave  = anneau PLAT (RingGeometry) — shockwave face-caméra
+ *  core  = disque plein — noyau d'onde
+ *  slash = ruban fin allongé — coup de griffe / riff
+ *  howl  = cône — cri / bâillement
+ *  orb   = sphère — note basse / orbe rituel
+ *  beam  = barre fine — regard / C2
+ *  streak= boîte allongée — projectile fuzz
+ */
+const GEO_WAVE=new THREE.RingGeometry(0.45,0.85,20);
+const GEO_CORE=new THREE.CircleGeometry(0.55,14);
+const GEO_SLASH=new THREE.BoxGeometry(0.16, 0.06, 2.6);
+const GEO_HOWL=new THREE.ConeGeometry(0.85, 2.2, 8, 1, true);
+const GEO_ORB=new THREE.SphereGeometry(0.55, 8, 6);
+const GEO_BEAM=new THREE.BoxGeometry(0.18, 0.18, 2.8);
+const GEO_STREAK=new THREE.BoxGeometry(0.35, 0.12, 1.6);
+const GEO_BLADE=new THREE.ConeGeometry(0.22, 1.8, 5); // pointe de slash
+
+for(let i=0;i<16;i++){
+  const g=new THREE.Group();
+  g.visible=false;
+  const wave=new THREE.Mesh(GEO_WAVE, makeBoltMat(0xffd84a,0xaa5500));
+  const core=new THREE.Mesh(GEO_CORE, makeBoltMat(0xffaa5a,0xcc6620,0.55));
+  const slash=new THREE.Mesh(GEO_SLASH, makeBoltMat(0xff8a3a,0xaa3010));
+  const blade=new THREE.Mesh(GEO_BLADE, makeBoltMat(0xb8ffc8,0x2a8a4a));
+  blade.rotation.x=Math.PI/2;
+  const howl=new THREE.Mesh(GEO_HOWL, makeBoltMat(0xff3a3a,0x880808,0.7));
+  howl.rotation.x=Math.PI/2; // cône le long de +Z
+  const orb=new THREE.Mesh(GEO_ORB, makeBoltMat(0x5555ff,0x2020aa));
+  const beam=new THREE.Mesh(GEO_BEAM, makeBoltMat(0x3aff7a,0x1a6a3a));
+  const streak=new THREE.Mesh(GEO_STREAK, makeBoltMat(0xffaa5a,0x884410));
+  const parts={ wave, core, slash, blade, howl, orb, beam, streak };
+  Object.keys(parts).forEach(k=>{ parts[k].visible=false; g.add(parts[k]); });
+  fxRoot.add(g);
+  boltPool.push({
+    root:g, parts, life:0, max:1, type:'', arc:0.4, spin:0,
+    faceCam:false, stretch:false, layers:1
+  });
+}
+
+function hideBoltParts(slot){
+  Object.keys(slot.parts).forEach(k=>{
+    const p=slot.parts[k];
+    p.visible=false;
+    p.position.set(0,0,0);
+    p.scale.set(1,1,1);
+  });
+  slot.root.visible=false;
+  slot.root.scale.set(1,1,1);
+}
+
+function tintPart(mesh, col, em, intens){
+  mesh.material.color.setHex(col);
+  mesh.material.emissive.setHex(em);
+  mesh.material.emissiveIntensity=intens!=null?intens:1.35;
+  mesh.material.opacity=0.92;
+}
+
+function worldAnchor(obj, yOff){
+  const v=new THREE.Vector3(0, yOff||0, 0);
+  if(obj===somnul){ v.set(0, yOff!=null?yOff:7, 1.2); somnul.localToWorld(v); }
+  else if(obj && obj.getWorldPosition){ obj.getWorldPosition(v); v.y+=(yOff!=null?yOff:1.6); }
+  return v.clone();
+}
+
+function spawnAttackVFX(fromObj, toObj, type, opts){
+  opts=opts||{};
+  let slot=null;
+  for(let i=0;i<boltPool.length;i++){
+    if(boltPool[i].life<=0){ slot=boltPool[i]; break; }
+  }
+  if(!slot) return null;
+  hideBoltParts(slot);
+  slot.from=worldAnchor(fromObj, opts.fromY);
+  slot.to=worldAnchor(toObj, opts.toY);
+  slot.type=type;
+  slot.max=opts.dur||0.85;
+  slot.life=slot.max;
+  slot.arc=opts.arc!=null?opts.arc:0.45;
+  slot.spin=0;
+  slot.impactBurst=opts.burst!==false;
+  slot.faceCam=false;
+  slot.stretch=false;
+  slot.ground=false;
+
+  const P=slot.parts;
+  let col=0xffd84a, em=0xaa6620;
+
+  if(type==='fuzz'){
+    // Onde de distortion + streak — PAS de torus
+    col=0xffaa5a; em=0xcc5510;
+    tintPart(P.wave, col, em, 1.6); tintPart(P.core, 0xffd080, 0xff8800, 1.2); tintPart(P.streak, col, em, 1.4);
+    P.wave.visible=P.core.visible=P.streak.visible=true;
+    slot.faceCam=true; slot.arc=0.25; slot.max=opts.dur||0.8; slot.life=slot.max;
+  }
+  else if(type==='scream'){
+    col=0xff2a2a; em=0xaa0000;
+    tintPart(P.howl, col, em, 1.8); tintPart(P.core, 0xff6666, 0xff2020, 1.0);
+    P.howl.visible=P.core.visible=true;
+    slot.arc=0.08; slot.max=opts.dur||1.0; slot.life=slot.max;
+  }
+  else if(type==='rifflord'){
+    col=0xff7a28; em=0xaa3008;
+    tintPart(P.slash, col, em, 1.7); tintPart(P.blade, 0xffcc66, 0xff8800, 1.5);
+    P.slash.visible=P.blade.visible=true;
+    slot.arc=0.55; slot.stretch=true;
+  }
+  else if(type==='solo'){
+    col=0xffd84a; em=0xcc9900;
+    tintPart(P.streak, col, em, 1.8); tintPart(P.core, 0xffe8a0, 0xffaa00, 1.3); tintPart(P.wave, col, em, 1.0);
+    P.streak.visible=P.core.visible=P.wave.visible=true;
+    slot.faceCam=true; slot.arc=0.9; slot.max=opts.dur||1.05; slot.life=slot.max;
+  }
+  else if(type==='kalimba'){
+    col=0x8ad8ff; em=0x3080cc;
+    tintPart(P.orb, col, em, 1.4); tintPart(P.wave, 0xb0e8ff, em, 0.9);
+    P.orb.visible=P.wave.visible=true;
+    slot.faceCam=true; slot.arc=0.85;
+  }
+  else if(type==='tome'){
+    col=0xaa55ff; em=0x5a20aa;
+    tintPart(P.wave, col, em, 1.6); tintPart(P.core, 0xcc88ff, em, 1.1);
+    P.wave.visible=P.core.visible=true;
+    slot.faceCam=true; slot.ground=true; slot.arc=0.05;
+  }
+  else if(type==='groove'){
+    col=0xa8d0a8; em=0x3a6a3a;
+    tintPart(P.wave, col, em, 1.2); tintPart(P.core, 0xcfe8cf, em, 0.8);
+    P.wave.visible=P.core.visible=true;
+    slot.faceCam=true; slot.ground=true; slot.arc=0.08; slot.max=opts.dur||0.7; slot.life=slot.max;
+  }
+  else if(type==='c2'){
+    col=0x4444ff; em=0x1515aa;
+    tintPart(P.orb, col, em, 1.9); tintPart(P.wave, 0x6666ff, em, 1.2); tintPart(P.beam, 0x2222cc, em, 1.0);
+    P.orb.visible=P.wave.visible=P.beam.visible=true;
+    slot.faceCam=true; slot.arc=0.15; slot.max=opts.dur||1.2; slot.life=slot.max;
+  }
+  else if(type==='bassfuzz'){
+    col=0xffd84a; em=0xdd8800;
+    tintPart(P.wave, col, em, 2.0); tintPart(P.core, 0xfff0a0, 0xffaa00, 1.6); tintPart(P.streak, 0xffaa33, em, 1.5);
+    P.wave.visible=P.core.visible=P.streak.visible=true;
+    slot.faceCam=true; slot.arc=0.12; slot.max=opts.dur||1.25; slot.life=slot.max;
+  }
+  else if(type==='griffe'){
+    col=0xb8ffc8; em=0x2aff6a;
+    tintPart(P.slash, col, em, 1.8); tintPart(P.blade, 0xe0ffe8, em, 1.6);
+    P.slash.visible=P.blade.visible=true;
+    slot.arc=0.35; slot.stretch=true; slot.max=opts.dur||0.65; slot.life=slot.max;
+  }
+  else if(type==='baille'){
+    col=0x6aff90; em=0x2a8a40;
+    tintPart(P.howl, col, em, 1.3); tintPart(P.wave, col, em, 1.0); tintPart(P.core, 0xa0ffb8, em, 0.7);
+    P.howl.visible=P.wave.visible=P.core.visible=true;
+    // pas de faceCam : le cône doit viser la cible (comme scream)
+    slot.arc=0.12; slot.max=opts.dur||1.0; slot.life=slot.max;
+  }
+  else if(type==='spores'){
+    col=0x6aaa6a; em=0x3a7a3a;
+    tintPart(P.orb, col, em, 1.1); tintPart(P.core, 0x8aca8a, em, 0.8);
+    P.orb.visible=P.core.visible=true;
+    slot.arc=0.55;
+  }
+  else if(type==='regard'){
+    col=0x3aff7a; em=0x1aee66;
+    tintPart(P.beam, col, em, 2.2); tintPart(P.core, 0xa0ffc0, em, 1.5);
+    P.beam.visible=P.core.visible=true;
+    slot.arc=0; slot.max=opts.dur||1.0; slot.life=slot.max;
+  }
+  if(opts.arc!=null) slot.arc=opts.arc;
+  if(opts.dur!=null){ slot.max=opts.dur; slot.life=opts.dur; }
+
+  slot.color=col; slot.emissive=em;
+  slot.root.visible=true;
+  slot.root.position.copy(slot.from);
+  slot.root.scale.set(1,1,1);
+  slot.active=slot.root;
+  return slot;
+}
+
+function updateBolts(dt){
+  for(let i=0;i<boltPool.length;i++){
+    const b=boltPool[i];
+    if(b.life<=0 || !b.active) continue;
+    b.life-=dt;
+    const u=clamp01(1-Math.max(0,b.life)/b.max);
+    const root=b.root;
+    const P=b.parts;
+    _boltFrom.copy(b.from);
+    _boltTo.copy(b.to);
+    if(b.ground){
+      _boltFrom.y=Math.min(_boltFrom.y, 0.35);
+      _boltTo.y=Math.min(_boltTo.y, 0.4);
+    }
+    _boltMid.lerpVectors(_boltFrom, _boltTo, 0.5);
+    _boltMid.y+=b.arc*4.2;
+    const omu=1-u;
+    root.position.set(
+      omu*omu*_boltFrom.x + 2*omu*u*_boltMid.x + u*u*_boltTo.x,
+      omu*omu*_boltFrom.y + 2*omu*u*_boltMid.y + u*u*_boltTo.y,
+      omu*omu*_boltFrom.z + 2*omu*u*_boltMid.z + u*u*_boltTo.z
+    );
+    // Tangente de vol
+    _boltDir.set(
+      2*omu*(_boltMid.x-_boltFrom.x)+2*u*(_boltTo.x-_boltMid.x),
+      2*omu*(_boltMid.y-_boltFrom.y)+2*u*(_boltTo.y-_boltMid.y),
+      2*omu*(_boltMid.z-_boltFrom.z)+2*u*(_boltTo.z-_boltMid.z)
+    );
+    if(b.faceCam){
+      // Shockwave toujours face caméra = lisible, jamais "curly" de profil
+      root.quaternion.copy(camera.quaternion);
+    } else if(_boltDir.lengthSq()>1e-6){
+      _boltDir.normalize();
+      _boltQuat.setFromUnitVectors(_boltFwd, _boltDir);
+      root.quaternion.copy(_boltQuat);
+      if(b.type==='rifflord' || b.type==='griffe'){
+        b.spin+=dt*10;
+        _boltSpinQ.setFromAxisAngle(_boltFwd, b.spin*0.35);
+        root.quaternion.multiply(_boltSpinQ);
+      }
+    }
+
+    const fade=Math.max(0.12, 1-u*u*0.75);
+    // Échelles / morph par type — signatures distinctes
+    if(b.type==='fuzz'){
+      const s=0.6+u*2.6;
+      P.wave.scale.set(s, s, 1);
+      P.core.scale.set(s*0.45*(1-u*0.5), s*0.45*(1-u*0.5), 1);
+      P.streak.scale.set(0.7, 0.7, 0.8+u*2.2);
+      P.wave.material.opacity=0.85*fade;
+      P.core.material.opacity=0.5*fade;
+      P.streak.material.opacity=0.75*fade;
+    }
+    else if(b.type==='solo'){
+      const s=0.5+u*2.0;
+      P.wave.scale.set(s*(1+0.15*Math.sin(u*40)), s, 1);
+      P.core.scale.set(0.25+u*0.4, 0.25+u*0.4, 1);
+      P.streak.scale.set(0.45+u*0.3, 0.35, 1.4+u*3.2);
+      P.wave.material.opacity=0.55*fade;
+      P.streak.material.opacity=0.9*fade;
+      P.core.material.opacity=0.7*fade;
+    }
+    else if(b.type==='bassfuzz'){
+      const s=1.0+u*4.2;
+      P.wave.scale.set(s, s*0.85, 1);
+      P.core.scale.set(s*0.28, s*0.28, 1);
+      P.streak.scale.set(1.4+u*1.2, 0.55, 2.0+u*4);
+      P.wave.material.opacity=0.95*fade;
+      P.core.material.opacity=0.55*fade;
+      P.streak.material.opacity=0.8*fade;
+      if(u>0.55 && u<0.62) flasher('#ffd84a',0.25);
+    }
+    else if(b.type==='tome' || b.type==='groove'){
+      const s=(b.type==='tome'?1.0:0.7)+u*(b.type==='tome'?3.5:2.2);
+      P.wave.scale.set(s, s, 1);
+      P.core.scale.set(s*0.5*(1-u*0.4), s*0.5*(1-u*0.4), 1);
+      // Plaquer au sol : tilt face-up
+      root.quaternion.setFromAxisAngle(_boltAxisX, -Math.PI/2);
+      P.wave.material.opacity=0.8*fade;
+      P.core.material.opacity=0.45*fade;
+    }
+    else if(b.type==='scream'){
+      const len=1.0+u*3.2;
+      const rad=0.6+u*2.4;
+      P.howl.scale.set(rad, len, rad);
+      P.core.scale.set(rad*0.4, rad*0.4, 1);
+      P.core.position.z=len*0.35;
+      P.howl.material.opacity=0.75*fade;
+      P.core.material.opacity=0.4*fade;
+      if(u>0.4 && u<0.48) flasher('#ff3a3a',0.2);
+    }
+    else if(b.type==='baille'){
+      const len=0.8+u*2.4;
+      const rad=0.9+u*2.8;
+      P.howl.scale.set(rad, len*0.7, rad);
+      P.wave.scale.set(rad*1.1, rad*1.1, 1);
+      P.core.scale.set(rad*0.35, rad*0.35, 1);
+      P.howl.material.opacity=0.55*fade;
+      P.wave.material.opacity=0.5*fade;
+    }
+    else if(b.type==='rifflord' || b.type==='griffe'){
+      const len=1.0+u*2.4;
+      P.slash.scale.set(1.1+u*0.5, 1, len);
+      P.blade.scale.set(0.9, len*0.75, 0.9);
+      P.blade.position.z=len*0.15;
+      P.slash.material.opacity=0.92*fade;
+      P.blade.material.opacity=0.88*fade;
+    }
+    else if(b.type==='kalimba'){
+      const s=0.5+u*1.6;
+      P.orb.scale.setScalar(0.55+u*0.7);
+      P.wave.scale.set(s, s, 1);
+      P.orb.material.opacity=0.85*fade;
+      P.wave.material.opacity=0.55*fade;
+    }
+    else if(b.type==='c2'){
+      const s=0.7+u*2.8;
+      P.orb.scale.setScalar(0.7+u*1.8);
+      P.wave.scale.set(s, s, 1);
+      P.beam.scale.set(0.5, 0.5, 1.2+u*3.5);
+      P.orb.material.opacity=0.9*fade;
+      P.wave.material.opacity=0.65*fade;
+      if(u>0.7 && u<0.78){ camShake=Math.max(camShake,0.55); flasher('#4444ff',0.3); }
+    }
+    else if(b.type==='spores'){
+      P.orb.scale.setScalar(0.4+u*1.4+Math.sin(u*20)*0.1);
+      P.core.scale.setScalar(0.3+u*0.9);
+      P.orb.material.opacity=0.7*fade;
+      if(Math.random()<0.4) burstFX(root.position.clone(), 2, { color:b.color, life:0.55, spread:0.7, up:1.0, scale:0.55 });
+    }
+    else if(b.type==='regard'){
+      const len=1.5+u*5.5;
+      P.beam.scale.set(0.35+0.25*Math.sin(u*30), 0.35+0.25*Math.sin(u*30), len);
+      P.core.scale.set(0.5+u, 0.5+u, 1);
+      P.core.position.z=0;
+      P.beam.material.opacity=0.55+0.4*Math.sin(u*Math.PI*8);
+      P.core.material.opacity=0.7*fade;
+    }
+
+    if(b.life<=0){
+      const doBurst=b.impactBurst;
+      const hitCol=b.color, hitEm=b.emissive;
+      const hitGround=(b.type==='tome'||b.type==='groove');
+      b.impactBurst=false;
+      b.active=null;
+      hideBoltParts(b);
+      if(doBurst){
+        const n=b.type==='bassfuzz'?14:(b.type==='spores'?8:(b.type==='c2'?10:6));
+        burstFX(_boltTo.clone(), n, {
+          color:hitCol, emissive:hitEm, life:0.55, spread:1.8, up:0.7, scale:0.9
+        });
+        for(let j=0;j<boltPool.length;j++){
+          const s2=boltPool[j];
+          if(s2.active) continue;
+          hideBoltParts(s2);
+          s2.from=_boltTo.clone(); s2.to=_boltTo.clone();
+          s2.type='fuzz'; s2.max=0.34; s2.life=0.34; s2.arc=0; s2.faceCam=true;
+          s2.impactBurst=false; s2.ground=hitGround;
+          s2.color=hitCol; s2.emissive=hitEm;
+          tintPart(s2.parts.wave, hitCol, hitEm, 2.0);
+          tintPart(s2.parts.core, hitCol, hitEm, 1.4);
+          s2.parts.wave.visible=true; s2.parts.core.visible=true;
+          s2.root.visible=true; s2.root.position.copy(_boltTo);
+          s2.active=s2.root;
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Rest shoulder pose
+brasSG.shoulder.rotation.set(-0.25, 0.15, -0.42);
+brasSD.shoulder.rotation.set(-0.25,-0.15,  0.42);
+brasSG.upper.rotation.set(0,0,0);
+brasSD.upper.rotation.set(0,0,0);
+brasSG.elbow.rotation.set(-0.55,0,0);
+brasSD.elbow.rotation.set(-0.55,0,0);
+
+function somnulWorldPoint(localY){
+  const v=new THREE.Vector3(0, localY, 1.5);
+  somnul.localToWorld(v);
+  return v;
+}
+
+function resetSomnulPose(){
+  torsoG.rotation.set(0,0,0);
+  torsoG.position.y=0;
+  couG.rotation.set(0,0,0);
+  teteS.rotation.set(0.08,0,0);
+  teteS.scale.set(1,1,1);
+  machoires.rotation.set(0,0,0);
+  machoires.position.y=-0.35;
+  brasSG.shoulder.rotation.set(-0.25, 0.15, -0.42);
+  brasSD.shoulder.rotation.set(-0.25,-0.15,  0.42);
+  brasSG.upper.rotation.set(0,0,0);
+  brasSD.upper.rotation.set(0,0,0);
+  brasSG.elbow.rotation.set(-0.55,0,0.12);
+  brasSD.elbow.rotation.set(-0.55,0,-0.12);
+  brasSG.wrist.rotation.set(0,0,0);
+  brasSD.wrist.rotation.set(0,0,0);
+  jambes[0].hip.rotation.set(0.08,0,0.05);
+  jambes[1].hip.rotation.set(0.08,0,-0.05);
+  jambes[0].knee.rotation.set(0.15,0,0);
+  jambes[1].knee.rotation.set(0.15,0,0);
+  somnul.rotation.set(0,0,0);
+  corps.scale.set(1.05,1.12,0.92);
+  ventreS.scale.set(1,1.1,0.52);
+  museau.scale.set(1,0.8,0.7);
+  yeux.forEach(o=>{ o.material.emissiveIntensity=1.4; o.scale.setScalar(1); });
+  lumSomnul.intensity=1.8;
+  lumSomnul.color.setHex(0x4aff8a);
+}
+
+resetSomnulPose();
+somnul.scale.set(1.75,1.75,1.75);
+somnul.position.set(0,-18,-10);
 scene.add(somnul);
+
+/** Easing */
+function easeInOut(t){ return t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2; }
+function easeOutBack(t){ const c1=1.7,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2); }
+function easeInOutCubic(t){ return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2; }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp01(t){ return Math.max(0,Math.min(1,t)); }
+function smoothstep(a,b,x){ const t=clamp01((x-a)/(b-a)); return t*t*(3-2*t); }
 
 // ============================================================
 //  LES MUSICIENS
@@ -427,26 +945,30 @@ function makeMusicien(cfg){
   g.add(tete); g.userData.tete=tete;
 
   function bras(side){
-    const b=new THREE.Group();
+    const shoulder=new THREE.Group();
     const matBrasHaut=cfg.torseNu?matPeau:matHaut;
-    const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.4,6),matBrasHaut);
-    haut.position.y=-0.2; b.add(haut);
-    const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.36,6),matPeau);
-    avant.position.y=-0.58; b.add(avant);
+    const haut=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.38,6),matBrasHaut);
+    haut.position.y=-0.18; shoulder.add(haut);
+    const elbow=new THREE.Group();
+    elbow.position.y=-0.4;
+    shoulder.add(elbow);
+    const avant=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.34,6),matPeau);
+    avant.position.y=-0.16; elbow.add(avant);
     const poing=new THREE.Mesh(new THREE.SphereGeometry(0.075,6,5),matPeau);
-    poing.position.y=-0.8; b.add(poing);
+    poing.position.y=-0.36; elbow.add(poing);
 
     if((side===1 && cfg.tatouageBrasD) || (side===-1 && cfg.tatouageBrasG)){
       for(let i=0;i<3;i++){
         const tat=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.02),matTattoo);
-        tat.position.set(0.07,-0.3-i*0.18,0.04);
-        b.add(tat);
+        tat.position.set(0.07,-0.12-i*0.12,0.04);
+        shoulder.add(tat);
       }
     }
 
-    b.position.set(side*0.4,1.5,0);
-    g.add(b);
-    return b;
+    shoulder.position.set(side*0.4,1.5,0);
+    shoulder.rotation.z=side*0.08;
+    g.add(shoulder);
+    return { shoulder, elbow };
   }
   g.userData.brasG=bras(-1);
   g.userData.brasD=bras(1);
@@ -807,48 +1329,531 @@ function sonSomnul(type){
 const anims=[];
 function animer(fn){ anims.push(fn); }
 
-function animAttaqueMusicien(m,duree=1.2){
+const MUSIC_ATK_DUR={
+  fuzz:1.05, scream:1.5, rifflord:1.25, solo:1.45,
+  kalimba:1.2, tome:1.25, groove:0.95, c2:1.7, bassfuzz:1.85
+};
+
+function resetMusicienPose(m){
+  const mesh=m.mesh;
+  if(!mesh) return;
+  mesh.position.z=m.basePos.z;
+  mesh.rotation.set(0,0,0);
+  mesh.userData.tete.rotation.set(0,0,0);
+  mesh.userData.brasD.shoulder.rotation.set(0,0,0.08);
+  mesh.userData.brasG.shoulder.rotation.set(0,0,-0.08);
+  mesh.userData.brasD.elbow.rotation.set(0,0,0);
+  mesh.userData.brasG.elbow.rotation.set(0,0,0);
+}
+
+function animAttaqueMusicien(m, actionId){
   const mesh=m.mesh, t0=performance.now()/1000;
+  const dur=MUSIC_ATK_DUR[actionId]||1.2;
   const baseZ=m.basePos.z;
-  animer((now)=>{
-    const e=(now-t0)/duree;
-    if(e>=1){ mesh.position.z=baseZ; mesh.userData.brasD.rotation.x=0; return true; }
-    const lunge=Math.sin(Math.min(e*2,1)*Math.PI)*1.2;
-    mesh.position.z=baseZ-lunge;
-    mesh.userData.brasD.rotation.x=-Math.sin(e*Math.PI*4)*1.8;
-    mesh.userData.tete.rotation.x=Math.sin(e*Math.PI*6)*0.4;
-    return false;
-  });
-}
-function animSomnulTouche(){
-  const t0=performance.now()/1000;
-  animer((now)=>{
-    const e=(now-t0)/0.6;
-    if(e>=1){ somnul.rotation.z=0; return true; }
-    somnul.rotation.z=Math.sin(e*Math.PI*3)*0.06*(1-e);
-    return false;
-  });
-  camShake=0.25;
-}
-function animSomnulAttaque(quel){
-  const t0=performance.now()/1000;
-  if(quel==='griffe'){
-    animer((now)=>{
-      const e=(now-t0)/1.4;
-      if(e>=1){ brasSD.rotation.x=0; return true; }
-      brasSD.rotation.x=e<0.5 ? -e*2*1.6 : -(1-(e-0.5)*2)*1.6;
-      return false;
-    });
+  const bd=mesh.userData.brasD, bg=mesh.userData.brasG, tete=mesh.userData.tete;
+  resetMusicienPose(m);
+
+  // VFX vers Somnul
+  if(actionId==='fuzz'){
+    setTimeout(()=>spawnAttackVFX(mesh, somnul, 'fuzz', { fromY:1.5, toY:6.5, dur:0.7 }), 200);
+    setTimeout(()=>spawnAttackVFX(mesh, somnul, 'fuzz', { fromY:1.3, toY:6.2, dur:0.85, arc:0.55 }), 380);
+  } else if(actionId==='groove'){
+    setTimeout(()=>spawnAttackVFX(mesh, somnul, 'groove', { fromY:1.4, toY:5, dur:0.65 }), 120);
   } else {
+    const vfxDelay=actionId==='bassfuzz'?250:150;
+    setTimeout(()=>spawnAttackVFX(mesh, somnul, actionId, {
+      fromY: actionId==='tome'?0.4:1.5,
+      toY: actionId==='kalimba'?8.5:6.5,
+      dur: Math.min(dur*0.75, 1.15)
+    }), vfxDelay);
+  }
+
+  animer((now)=>{
+    const e=clamp01((now-t0)/dur);
+    if(actionId==='fuzz'){
+      // Power chord strike: lean in, strum arm heavy
+      if(e<0.35){
+        const u=easeInOut(e/0.35);
+        mesh.position.z=baseZ-lerp(0,1.0,u);
+        mesh.rotation.x=lerp(0,-0.12,u);
+        bd.shoulder.rotation.set(lerp(0,-1.1,u), 0.2, 0.15);
+        bd.elbow.rotation.x=lerp(0,-0.8,u);
+        bg.shoulder.rotation.set(lerp(0,-0.4,u), -0.1, -0.2);
+        tete.rotation.x=lerp(0,0.15,u);
+      } else if(e<0.55){
+        const u=easeOutBack((e-0.35)/0.2);
+        bd.shoulder.rotation.set(lerp(-1.1,-0.2,u), lerp(0.2,-0.3,u), 0.1);
+        bd.elbow.rotation.x=lerp(-0.8,-1.3,u);
+        mesh.position.z=baseZ-1.0;
+        if(u>0.4 && u<0.55) flasher('#ffaa5a',0.2);
+      } else {
+        const u=easeInOut((e-0.55)/0.45);
+        mesh.position.z=lerp(baseZ-1.0, baseZ, u);
+        mesh.rotation.x=lerp(-0.12,0,u);
+        bd.shoulder.rotation.set(lerp(-0.2,0,u), lerp(-0.3,0,u), lerp(0.1,0.08,u));
+        bd.elbow.rotation.x=lerp(-1.3,0,u);
+        bg.shoulder.rotation.set(lerp(-0.4,0,u),0,lerp(-0.2,-0.08,u));
+        tete.rotation.x=lerp(0.15,0,u);
+      }
+    }
+    else if(actionId==='scream'){
+      // Mic scream: chest out, head back, both arms open
+      const open=e<0.5?easeOutBack(e/0.5):easeInOut((1-e)/0.5);
+      mesh.position.z=baseZ-0.6*Math.sin(Math.min(e,1)*Math.PI);
+      mesh.rotation.x=-0.2*open;
+      tete.rotation.x=-0.55*open;
+      tete.rotation.z=Math.sin(e*Math.PI*6)*0.08*open;
+      bd.shoulder.rotation.set(-0.9*open, 0.4*open, 0.7*open);
+      bg.shoulder.rotation.set(-0.9*open,-0.4*open,-0.7*open);
+      bd.elbow.rotation.x=-0.5*open;
+      bg.elbow.rotation.x=-0.5*open;
+      if(e>0.35 && e<0.4) flasher('#ff3a3a',0.35);
+    }
+    else if(actionId==='rifflord'){
+      // Windmill / heavy riff swing
+      if(e<0.4){
+        const u=easeInOutCubic(e/0.4);
+        mesh.rotation.y=lerp(0,-0.35,u);
+        mesh.position.z=baseZ-lerp(0,0.7,u);
+        bd.shoulder.rotation.set(lerp(0,-2.0,u), lerp(0,-0.5,u), lerp(0.08,0.5,u));
+        bd.elbow.rotation.x=lerp(0,-0.2,u);
+        tete.rotation.y=lerp(0,-0.2,u);
+      } else if(e<0.65){
+        const u=easeInCubic((e-0.4)/0.25);
+        mesh.rotation.y=lerp(-0.35,0.4,u);
+        bd.shoulder.rotation.set(lerp(-2.0,0.3,u), lerp(-0.5,0.6,u), lerp(0.5,-0.1,u));
+        bd.elbow.rotation.x=lerp(-0.2,-1.2,u);
+        mesh.position.z=baseZ-0.7;
+        if(u>0.5 && u<0.65){ flasher('#ff8a3a',0.25); camShake=Math.max(camShake,0.35); }
+      } else {
+        const u=easeInOut((e-0.65)/0.35);
+        mesh.rotation.y=lerp(0.4,0,u);
+        mesh.position.z=lerp(baseZ-0.7,baseZ,u);
+        bd.shoulder.rotation.set(lerp(0.3,0,u), lerp(0.6,0,u), lerp(-0.1,0.08,u));
+        bd.elbow.rotation.x=lerp(-1.2,0,u);
+        tete.rotation.y=lerp(-0.2,0,u);
+      }
+    }
+    else if(actionId==='solo'){
+      // Fast fretboard flurry
+      mesh.position.z=baseZ-0.5*Math.sin(Math.min(e*1.2,1)*Math.PI);
+      bd.shoulder.rotation.set(-0.7+Math.sin(e*Math.PI*10)*0.55, Math.sin(e*Math.PI*7)*0.35, 0.2);
+      bd.elbow.rotation.x=-0.9+Math.sin(e*Math.PI*12)*0.5;
+      bg.shoulder.rotation.set(-0.5, -0.2, -0.25);
+      tete.rotation.x=0.2+Math.sin(e*Math.PI*8)*0.15;
+      tete.rotation.z=Math.sin(e*Math.PI*6)*0.12;
+      mesh.rotation.z=Math.sin(e*Math.PI*5)*0.06;
+      if(e>0.7 && e<0.75) flasher('#ffcc3a',0.3);
+    }
+    else if(actionId==='kalimba'){
+      // Ritual raise — gentle, both hands, head soft
+      const u=Math.sin(e*Math.PI);
+      mesh.position.z=baseZ-0.35*u;
+      bd.shoulder.rotation.set(-1.0*u, 0.25*u, 0.35*u);
+      bg.shoulder.rotation.set(-1.0*u,-0.25*u,-0.35*u);
+      bd.elbow.rotation.x=-0.7*u;
+      bg.elbow.rotation.x=-0.7*u;
+      tete.rotation.x=-0.2*u;
+      mesh.rotation.x=-0.08*u;
+    }
+    else if(actionId==='tome'){
+      // Drum hit downward into earth
+      if(e<0.35){
+        const u=easeInOut(e/0.35);
+        bd.shoulder.rotation.set(lerp(0,-1.6,u),0,0.2);
+        bg.shoulder.rotation.set(lerp(0,-1.4,u),0,-0.2);
+        bd.elbow.rotation.x=lerp(0,-0.3,u);
+        mesh.position.y=Math.sin(u*Math.PI)*0.15;
+      } else if(e<0.5){
+        const u=easeInCubic((e-0.35)/0.15);
+        bd.shoulder.rotation.set(lerp(-1.6,-0.3,u),0,0.1);
+        bg.shoulder.rotation.set(lerp(-1.4,-0.3,u),0,-0.1);
+        mesh.position.z=baseZ-u*0.4;
+        if(u>0.6){ camShake=Math.max(camShake,0.45); flasher('#aa6aff',0.25); }
+      } else {
+        const u=easeInOut((e-0.5)/0.5);
+        bd.shoulder.rotation.set(lerp(-0.3,0,u),0,lerp(0.1,0.08,u));
+        bg.shoulder.rotation.set(lerp(-0.3,0,u),0,lerp(-0.1,-0.08,u));
+        bd.elbow.rotation.x=0; bg.elbow.rotation.x=0;
+        mesh.position.z=lerp(baseZ-0.4,baseZ,u);
+        mesh.position.y=0;
+      }
+    }
+    else if(actionId==='groove'){
+      // Head-nod pocket, subtle bounce
+      const pulse=Math.sin(e*Math.PI*4);
+      mesh.position.y=Math.abs(pulse)*0.08;
+      tete.rotation.x=0.15+pulse*0.12;
+      bd.shoulder.rotation.set(-0.35+pulse*0.15, 0.1, 0.15);
+      bg.shoulder.rotation.set(-0.45, -0.15, -0.2);
+      bd.elbow.rotation.x=-0.6;
+      bg.elbow.rotation.x=-0.4+pulse*0.2;
+      mesh.position.z=baseZ-0.2;
+    }
+    else if(actionId==='c2'){
+      // Drop: crouch then release abyss note forward
+      if(e<0.4){
+        const u=easeInOut(e/0.4);
+        mesh.position.y=lerp(0,-0.25,u);
+        mesh.rotation.x=lerp(0,0.25,u);
+        bd.shoulder.rotation.set(lerp(0,-0.8,u),0,0.3);
+        bg.shoulder.rotation.set(lerp(0,-0.8,u),0,-0.3);
+        tete.rotation.x=lerp(0,0.35,u);
+      } else if(e<0.6){
+        const u=easeOutBack((e-0.4)/0.2);
+        mesh.position.y=lerp(-0.25,0.1,u);
+        mesh.rotation.x=lerp(0.25,-0.15,u);
+        mesh.position.z=baseZ-lerp(0,1.3,u);
+        bd.shoulder.rotation.set(lerp(-0.8,-1.4,u),0.3,0.4);
+        bg.shoulder.rotation.set(lerp(-0.8,-1.4,u),-0.3,-0.4);
+        if(u>0.5) flasher('#3a3aff',0.4);
+      } else {
+        const u=easeInOut((e-0.6)/0.4);
+        mesh.position.z=lerp(baseZ-1.3,baseZ,u);
+        mesh.position.y=lerp(0.1,0,u);
+        mesh.rotation.x=lerp(-0.15,0,u);
+        bd.shoulder.rotation.set(lerp(-1.4,0,u),lerp(0.3,0,u),lerp(0.4,0.08,u));
+        bg.shoulder.rotation.set(lerp(-1.4,0,u),lerp(-0.3,0,u),lerp(-0.4,-0.08,u));
+        tete.rotation.x=lerp(0.35,0,u);
+      }
+    }
+    else if(actionId==='bassfuzz'){
+      // Ulti: both arms, full body drop slam
+      if(e<0.3){
+        const u=easeInOut(e/0.3);
+        mesh.position.y=lerp(0,-0.15,u);
+        bd.shoulder.rotation.set(lerp(0,-1.8,u),0.2,0.5);
+        bg.shoulder.rotation.set(lerp(0,-1.8,u),-0.2,-0.5);
+        tete.rotation.x=lerp(0,-0.3,u);
+      } else if(e<0.55){
+        const u=easeInCubic((e-0.3)/0.25);
+        mesh.position.z=baseZ-lerp(0,1.6,u);
+        mesh.position.y=lerp(-0.15,0.2,u);
+        mesh.rotation.x=lerp(0,-0.25,u);
+        bd.shoulder.rotation.set(lerp(-1.8,-0.4,u), lerp(0.2,0.5,u), 0.3);
+        bg.shoulder.rotation.set(lerp(-1.8,-0.4,u), lerp(-0.2,-0.5,u),-0.3);
+        if(u>0.6){ camShake=Math.max(camShake,0.7); flasher('#ffd84a',0.55); }
+      } else {
+        const u=easeInOut((e-0.55)/0.45);
+        mesh.position.z=lerp(baseZ-1.6,baseZ,u);
+        mesh.position.y=lerp(0.2,0,u);
+        mesh.rotation.x=lerp(-0.25,0,u);
+        bd.shoulder.rotation.set(lerp(-0.4,0,u),lerp(0.5,0,u),lerp(0.3,0.08,u));
+        bg.shoulder.rotation.set(lerp(-0.4,0,u),lerp(-0.5,0,u),lerp(-0.3,-0.08,u));
+        tete.rotation.x=lerp(-0.3,0,u);
+      }
+    }
+    else {
+      // fallback
+      const lunge=Math.sin(Math.min(e*2,1)*Math.PI)*0.9;
+      mesh.position.z=baseZ-lunge;
+      bd.shoulder.rotation.x=-Math.sin(e*Math.PI)*1.2;
+    }
+
+    if(e>=1){ resetMusicienPose(m); return true; }
+    return false;
+  });
+}
+function easeInCubic(t){ return t*t*t; }
+function animSomnulTouche(){
+  if(somnulAnimLock) return;
+  somnulAnimLock=true;
+  const t0=performance.now()/1000;
+  const dur=0.7;
+  animer((now)=>{
+    const e=clamp01((now-t0)/dur);
+    const k=Math.sin(e*Math.PI);
+    torsoG.rotation.z=Math.sin(e*Math.PI*4)*0.07*(1-e);
+    torsoG.rotation.x=-0.08*k;
+    teteS.rotation.x=0.08+0.12*k;
+    brasSG.shoulder.rotation.x=-0.25-0.2*k;
+    brasSD.shoulder.rotation.x=-0.25-0.2*k;
+    if(e>=1){ resetSomnulPose(); somnulAnimLock=false; return true; }
+    return false;
+  });
+  camShake=0.28;
+  burstFX(somnulWorldPoint(6), 6, { color:0x9ad89a, life:0.45, spread:1.6, up:0.3, scale:0.7 });
+}
+
+/** Durées synchronisées avec les awaits de tourSomnul */
+const SOMNUL_ATK_DUR={ griffe:1.85, baille:2.2, spores:2.0, regard:2.4 };
+
+function animSomnulAttaque(quel){
+  somnulAnimLock=true;
+  const t0=performance.now()/1000;
+  const dur=SOMNUL_ATK_DUR[quel]||1.8;
+  resetSomnulPose();
+
+  if(quel==='griffe'){
+    // Wind-up → slow sweeping claw → recover (sloth-slow but heavy)
+    let impactDone=false;
     animer((now)=>{
-      const e=(now-t0)/1.8;
-      if(e>=1){ teteS.rotation.x=0.1; teteS.scale.set(1,1,1); return true; }
-      teteS.rotation.x=0.1-Math.sin(e*Math.PI)*0.4;
-      const s=1+Math.sin(e*Math.PI)*0.12;
-      teteS.scale.set(s,s,s);
+      const e=clamp01((now-t0)/dur);
+      if(e<0.28){
+        const u=easeInOutCubic(e/0.28);
+        torsoG.rotation.y=lerp(0,-0.55,u);
+        torsoG.rotation.z=lerp(0,0.12,u);
+        torsoG.rotation.x=lerp(0,-0.12,u);
+        brasSD.shoulder.rotation.set(lerp(-0.25,-1.35,u), lerp(-0.15,-0.4,u), lerp(0.42,0.85,u));
+        brasSD.elbow.rotation.x=lerp(-0.55,-0.1,u);
+        brasSD.wrist.rotation.z=lerp(0,0.35,u);
+        brasSG.shoulder.rotation.x=lerp(-0.25,-0.55,u);
+        teteS.rotation.y=lerp(0,-0.28,u);
+        teteS.rotation.x=0.08+0.1*u;
+      } else if(e<0.55){
+        const u=easeOutBack(clamp01((e-0.28)/0.27));
+        torsoG.rotation.y=lerp(-0.55,0.7,u);
+        torsoG.rotation.z=lerp(0.12,-0.18,u);
+        torsoG.rotation.x=lerp(-0.12,0.25,u);
+        brasSD.shoulder.rotation.set(lerp(-1.35,-0.15,u), lerp(-0.4,0.55,u), lerp(0.85,0.2,u));
+        brasSD.elbow.rotation.x=lerp(-0.1,-1.15,u);
+        brasSD.wrist.rotation.z=lerp(0.35,-0.45,u);
+        brasSG.shoulder.rotation.set(lerp(-0.55,-0.4,u), 0.15, lerp(-0.42,-0.55,u));
+        teteS.rotation.y=lerp(-0.25,0.35,u);
+        if(!impactDone && u>0.48){
+          impactDone=true;
+          camShake=Math.max(camShake,0.55);
+          flasher('#3aff7a',0.2);
+          burstFX(somnulWorldPoint(5.5), 10, { color:0xb8ffc8, life:0.55, spread:2.2, up:0.2 });
+        }
+      } else {
+        const u=easeInOut((e-0.55)/0.45);
+        torsoG.rotation.y=lerp(0.7,0,u);
+        torsoG.rotation.z=lerp(-0.18,0,u);
+        torsoG.rotation.x=lerp(0.25,0,u);
+        brasSD.shoulder.rotation.set(lerp(-0.15,-0.25,u), lerp(0.55,-0.15,u), lerp(0.2,0.42,u));
+        brasSD.elbow.rotation.x=lerp(-1.15,-0.55,u);
+        brasSD.wrist.rotation.z=lerp(-0.45,0,u);
+        brasSG.shoulder.rotation.set(lerp(-0.4,-0.25,u), 0.15, lerp(-0.55,-0.42,u));
+        teteS.rotation.set(lerp(0.18,0.08,u), lerp(0.35,0,u), 0);
+      }
+      if(e>=1){ resetSomnulPose(); somnulAnimLock=false; return true; }
       return false;
     });
   }
+  else if(quel==='baille'){
+    animer((now)=>{
+      const e=clamp01((now-t0)/dur);
+      if(e<0.25){
+        const u=easeInOut(e/0.25);
+        torsoG.rotation.x=lerp(0,-0.35,u);
+        couG.rotation.x=lerp(0,-0.25,u);
+        teteS.rotation.x=lerp(0.08,-0.45,u);
+        brasSG.shoulder.rotation.x=lerp(-0.25,-0.7,u);
+        brasSD.shoulder.rotation.x=lerp(-0.25,-0.7,u);
+        corps.scale.set(lerp(1.05,1.12,u), lerp(1.12,1.22,u), lerp(0.92,1.0,u));
+      } else if(e<0.7){
+        const u=easeInOut((e-0.25)/0.45);
+        const open=Math.sin(u*Math.PI);
+        torsoG.rotation.x=-0.35+0.08*Math.sin(u*Math.PI*2);
+        teteS.rotation.x=-0.45-0.15*open;
+        teteS.scale.set(1+0.06*open, 1+0.1*open, 1+0.08*open);
+        machoires.position.y=-0.35-0.35*open;
+        museau.scale.set(1, 0.8+0.35*open, 0.7+0.25*open);
+        brasSG.shoulder.rotation.z=lerp(-0.42,-0.85,open);
+        brasSD.shoulder.rotation.z=lerp(0.42,0.85,open);
+        yeux.forEach(o=>{ o.material.emissiveIntensity=1.4+1.2*open; });
+        lumSomnul.intensity=1.8+1.4*open;
+        if(u>0.2 && Math.random()<0.35){
+          burstFX(somnulWorldPoint(8.5), 3, { color:0x7aff9a, life:1.1, spread:1.4, up:1.6, opacity:0.7 });
+        }
+        camShake=0.15+0.2*open;
+      } else {
+        const u=easeInOut((e-0.7)/0.3);
+        torsoG.rotation.x=lerp(-0.35,0,u);
+        couG.rotation.x=lerp(-0.25,0,u);
+        teteS.rotation.x=lerp(-0.45,0.08,u);
+        teteS.scale.set(1,1,1);
+        machoires.position.y=lerp(-0.7,-0.35,u);
+        museau.scale.set(1,0.8,0.7);
+        brasSG.shoulder.rotation.set(-0.25,0.15,lerp(-0.85,-0.42,u));
+        brasSD.shoulder.rotation.set(-0.25,-0.15,lerp(0.85,0.42,u));
+        yeux.forEach(o=>{ o.material.emissiveIntensity=lerp(2.6,1.4,u); });
+        lumSomnul.intensity=lerp(3.2,1.8,u);
+        corps.scale.set(1.05,1.12,0.92);
+      }
+      if(e>=1){ resetSomnulPose(); somnulAnimLock=false; return true; }
+      return false;
+    });
+  }
+  else if(quel==='spores'){
+    animer((now)=>{
+      const e=clamp01((now-t0)/dur);
+      if(e<0.2){
+        const u=easeInOut(e/0.2);
+        torsoG.rotation.x=lerp(0,0.15,u);
+        corps.scale.set(lerp(1.05,1.15,u), lerp(1.12,1.0,u), lerp(0.92,1.05,u));
+        brasSG.shoulder.rotation.z=lerp(-0.42,-0.95,u);
+        brasSD.shoulder.rotation.z=lerp(0.42,0.95,u);
+      } else if(e<0.75){
+        const u=(e-0.2)/0.55;
+        const shake=Math.sin(u*Math.PI*10)*(0.04+0.03*(1-u));
+        torsoG.rotation.z=shake;
+        torsoG.rotation.y=Math.sin(u*Math.PI*6)*0.08;
+        corps.scale.set(1.12+shake*2, 1.05, 1.0+Math.abs(shake));
+        brasSG.shoulder.rotation.x=-0.25+Math.sin(u*Math.PI*8)*0.2;
+        brasSD.shoulder.rotation.x=-0.25+Math.sin(u*Math.PI*8+1)*0.2;
+        if(Math.random()<0.55){
+          const o=somnulWorldPoint(4+Math.random()*4);
+          o.x+=(Math.random()-0.5)*2;
+          burstFX(o, 2, { color:0x6aaa6a, emissive:0x3a6a3a, life:1.3, spread:0.9, up:1.8+Math.random(), opacity:0.75, scale:0.9 });
+        }
+        yeux.forEach(o=>{ o.material.emissiveIntensity=1.4+Math.sin(u*Math.PI*4)*0.6; });
+        camShake=0.2;
+      } else {
+        const u=easeInOut((e-0.75)/0.25);
+        torsoG.rotation.set(0,0,0);
+        brasSG.shoulder.rotation.set(-0.25,0.15,lerp(-0.95,-0.42,u));
+        brasSD.shoulder.rotation.set(-0.25,-0.15,lerp(0.95,0.42,u));
+        corps.scale.set(1.05,1.12,0.92);
+        yeux.forEach(o=>{ o.material.emissiveIntensity=1.4; });
+      }
+      if(e>=1){ resetSomnulPose(); somnulAnimLock=false; return true; }
+      return false;
+    });
+  }
+  else if(quel==='regard'){
+    animer((now)=>{
+      const e=clamp01((now-t0)/dur);
+      if(e<0.35){
+        const u=easeInOutCubic(e/0.35);
+        torsoG.rotation.x=lerp(0,0.22,u);
+        couG.rotation.x=lerp(0,0.2,u);
+        teteS.rotation.x=lerp(0.08,0.35,u);
+        brasSG.shoulder.rotation.x=lerp(-0.25,-0.05,u);
+        brasSD.shoulder.rotation.x=lerp(-0.25,-0.05,u);
+        brasSG.elbow.rotation.x=lerp(-0.55,-0.9,u);
+        brasSD.elbow.rotation.x=lerp(-0.55,-0.9,u);
+      } else if(e<0.75){
+        const u=(e-0.35)/0.4;
+        const pulse=0.5+0.5*Math.sin(u*Math.PI*5);
+        teteS.rotation.x=0.35+0.04*Math.sin(u*Math.PI*3);
+        yeux.forEach(o=>{ o.material.emissiveIntensity=2.2+2.8*pulse; o.scale.setScalar(1+0.35*pulse); });
+        lumSomnul.intensity=2.5+3.5*pulse;
+        lumSomnul.color.setHex(0x6affb0);
+        camShake=0.12+0.25*pulse;
+        if(pulse>0.85) flasher('#4aff8a',0.08);
+        if(Math.random()<0.25) burstFX(somnulWorldPoint(9), 2, { color:0x3aff7a, life:0.5, spread:0.4, up:0.1, scale:0.5 });
+      } else {
+        const u=easeInOut((e-0.75)/0.25);
+        torsoG.rotation.x=lerp(0.22,0,u);
+        couG.rotation.x=lerp(0.2,0,u);
+        teteS.rotation.x=lerp(0.35,0.08,u);
+        yeux.forEach(o=>{ o.material.emissiveIntensity=lerp(4,1.4,u); o.scale.setScalar(lerp(1.35,1,u)); });
+        lumSomnul.intensity=lerp(5,1.8,u);
+        lumSomnul.color.setHex(0x4aff8a);
+        brasSG.shoulder.rotation.set(lerp(-0.05,-0.25,u), 0.15, -0.42);
+        brasSD.shoulder.rotation.set(lerp(-0.05,-0.25,u),-0.15, 0.42);
+        brasSG.elbow.rotation.x=lerp(-0.9,-0.55,u);
+        brasSD.elbow.rotation.x=lerp(-0.9,-0.55,u);
+      }
+      if(e>=1){ resetSomnulPose(); somnulAnimLock=false; return true; }
+      return false;
+    });
+  }
+  else {
+    somnulAnimLock=false;
+  }
+}
+
+function animSomnulApparition(onDone){
+  somnulAnimLock=true;
+  const t0=performance.now()/1000;
+  const dur=5.2;
+  somnul.position.set(0,-18,-10);
+  resetSomnulPose();
+  // Start curled: head down, arms tucked
+  torsoG.rotation.x=0.6;
+  teteS.rotation.x=0.7;
+  brasSG.shoulder.rotation.x=-1.1;
+  brasSD.shoulder.rotation.x=-1.1;
+  animer((now)=>{
+    const e=clamp01((now-t0)/dur);
+    if(e<0.45){
+      // Rise from below with rumble
+      const u=easeOutBack(clamp01(e/0.45));
+      const rise=easeInOutCubic(clamp01(e/0.45));
+      somnul.position.y=lerp(-18, SOMNUL_IDLE_Y, rise);
+      somnul.rotation.z=Math.sin(e*Math.PI*8)*0.04*(1-u);
+      torsoG.rotation.x=lerp(0.6,0.1,u);
+      camShake=0.35*(1-u*0.5);
+      if(Math.random()<0.4) burstFX(new THREE.Vector3((Math.random()-0.5)*3, 0.2, -10+(Math.random()-0.5)*2), 2, { color:0x5a7a5a, life:0.7, spread:0.8, up:0.8 });
+    } else if(e<0.75){
+      // Unfurl + first yawn
+      const u=easeInOut((e-0.45)/0.3);
+      somnul.position.y=SOMNUL_IDLE_Y;
+      torsoG.rotation.x=lerp(0.1, -0.2, Math.sin(u*Math.PI));
+      teteS.rotation.x=lerp(0.7, -0.35, Math.sin(u*Math.PI));
+      machoires.position.y=-0.35-0.3*Math.sin(u*Math.PI);
+      brasSG.shoulder.rotation.x=lerp(-1.1,-0.25,u);
+      brasSD.shoulder.rotation.x=lerp(-1.1,-0.25,u);
+      brasSG.shoulder.rotation.z=-0.42;
+      brasSD.shoulder.rotation.z=0.42;
+      yeux.forEach(o=>{ o.material.emissiveIntensity=0.2+1.2*u; });
+      lumSomnul.intensity=0.4+1.4*u;
+      if(u>0.3 && Math.random()<0.3) burstFX(somnulWorldPoint(8), 2, { color:0x7aff9a, life:1.0, up:1.4, spread:1.0 });
+    } else {
+      const u=easeOutBack(clamp01((e-0.75)/0.25));
+      resetSomnulPose();
+      // settle overshoot on scale
+      const s=lerp(0.92,1,u);
+      somnul.scale.set(1.75*s, 1.75*(2-s), 1.75*s);
+      yeux.forEach(o=>{ o.material.emissiveIntensity=1.4; });
+      lumSomnul.intensity=1.8;
+    }
+    if(e>=1){
+      somnul.scale.set(1.75,1.75,1.75);
+      somnul.position.y=SOMNUL_IDLE_Y;
+      resetSomnulPose();
+      somnulAnimLock=false;
+      somnulIntroDone=true;
+      if(onDone) onDone();
+      return true;
+    }
+    return false;
+  });
+}
+
+function animSomnulMort(onDone){
+  somnulAnimLock=true;
+  const t0=performance.now()/1000;
+  const dur=6.0;
+  animer((now)=>{
+    const e=clamp01((now-t0)/dur);
+    if(e<0.25){
+      const u=easeInOut(e/0.25);
+      // Stagger then droop
+      torsoG.rotation.z=Math.sin(u*Math.PI*3)*0.08*(1-u);
+      teteS.rotation.x=lerp(0.08,0.45,u);
+      yeux.forEach(o=>{ o.material.emissiveIntensity=lerp(1.4,0.6,u); });
+    } else if(e<0.55){
+      const u=easeInOutCubic((e-0.25)/0.3);
+      // Curl into sleep
+      torsoG.rotation.x=lerp(0,0.55,u);
+      couG.rotation.x=lerp(0,0.35,u);
+      teteS.rotation.x=lerp(0.45,0.85,u);
+      brasSG.shoulder.rotation.set(lerp(-0.25,-1.0,u), 0.15, lerp(-0.42,-0.2,u));
+      brasSD.shoulder.rotation.set(lerp(-0.25,-1.0,u),-0.15, lerp(0.42,0.2,u));
+      brasSG.elbow.rotation.x=lerp(-0.55,-1.2,u);
+      brasSD.elbow.rotation.x=lerp(-0.55,-1.2,u);
+      jambes[0].hip.rotation.x=lerp(0.08,0.5,u);
+      jambes[1].hip.rotation.x=lerp(0.08,0.5,u);
+      yeux.forEach(o=>{ o.material.emissiveIntensity=lerp(0.6,0.15,u); });
+      lumSomnul.intensity=lerp(1.8,0.6,u);
+      if(Math.random()<0.2) burstFX(somnulWorldPoint(5), 1, { color:0x4a6a4a, life:1.2, up:0.5, spread:0.6, opacity:0.5 });
+    } else {
+      const u=easeInOut((e-0.55)/0.45);
+      // Sink into cosmic sleep
+      somnul.position.y=lerp(SOMNUL_IDLE_Y, -6.5, u);
+      somnul.rotation.x=lerp(0,0.25,u);
+      teteS.rotation.x=0.85+0.2*u;
+      yeux.forEach(o=>{ o.material.emissiveIntensity=lerp(0.15,0,u); });
+      lumSomnul.intensity=lerp(0.6,0.05,u);
+      camShake=0.08*(1-u);
+    }
+    if(e>=1){ if(onDone) onDone(); return true; }
+    return false;
+  });
 }
 
 // ============================================================
@@ -864,8 +1869,8 @@ async function attaqueMembre(m, actionId){
 
   if(actionId==='fuzz'){
     log("POLAK-GUITARE FUZZ ! Le power chord de Mi fait vibrer les colonnes.");
-    sonGuitareFuzz(); animAttaqueMusicien(m); flasher('#ffaa5a',0.35);
-    await dodo(900);
+    sonGuitareFuzz(); animAttaqueMusicien(m,'fuzz');
+    await dodo(1050);
     const deg=15+Math.floor(Math.random()*7);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#ffd84a');
@@ -874,9 +1879,9 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='scream'){
     log("POLAK-DOOM SCREAM ! Un cri venu des profondeurs du cosmos.");
-    sonGuitareFuzz(); animAttaqueMusicien(m,1.8); flasher('#ff3a3a',0.5);
+    sonGuitareFuzz(); animAttaqueMusicien(m,'scream');
     camShake=0.5;
-    await dodo(1200);
+    await dodo(1550);
     const deg=22+Math.floor(Math.random()*9);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#ff5a5a');
@@ -889,8 +1894,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='rifflord'){
     log("STEVE-ATTAQUE RIFFLORD ! Le riff qui couche les empires.");
-    sonRifflord(); animAttaqueMusicien(m,1.5); flasher('#ff8a3a',0.45);
-    await dodo(1100);
+    sonRifflord(); animAttaqueMusicien(m,'rifflord');
+    await dodo(1300);
     const deg=16+Math.floor(Math.random()*8);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#ff9a4a');
@@ -900,8 +1905,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='solo'){
     log("STEVE-SOLO ! Les doigts volent sur les frettes...");
-    sonRifflord(); animAttaqueMusicien(m,1.6); flasher('#ffcc3a',0.5);
-    await dodo(1200);
+    sonRifflord(); animAttaqueMusicien(m,'solo');
+    await dodo(1450);
     let deg=14+Math.floor(Math.random()*11);
     const critique=Math.random()<0.28;
     if(critique){ deg*=2; degatsFlottants(somnul,'CRITIQUE !','#ffcc3a'); await dodo(400); }
@@ -913,8 +1918,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='kalimba'){
     log("CLEM-KALIMBA ! La berceuse rituelle apaise le groupe... et le dieu.");
-    sonKalimba(); animAttaqueMusicien(m); flasher('#8ad8ff',0.3);
-    await dodo(1100);
+    sonKalimba(); animAttaqueMusicien(m,'kalimba');
+    await dodo(1250);
     const deg=5+Math.floor(Math.random()*5);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#8ad8ff');
@@ -937,9 +1942,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='tome'){
     log("CLEM-TOME BASSE ! Un coup sourd qui fait trembler le sol.");
-    sonTambour(); animAttaqueMusicien(m,1.5); flasher('#aa6aff',0.4);
-    camShake=0.5;
-    await dodo(1100);
+    sonTambour(); animAttaqueMusicien(m,'tome');
+    await dodo(1300);
     const deg=11+Math.floor(Math.random()*5);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#cc8aff');
@@ -957,10 +1961,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='bassfuzz'){
     log("QUENTIN-BASS FUZZ !!! L'ULTI. Le drop d'octave qui rendort les dieux.");
-    sonBassFuzz(); animAttaqueMusicien(m,2.2);
-    camShake=0.7;
-    flasher('#ffd84a',0.7);
-    await dodo(1800);
+    sonBassFuzz(); animAttaqueMusicien(m,'bassfuzz');
+    await dodo(1900);
     const deg=44+Math.floor(Math.random()*11);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg+' !!','#ffd84a');
@@ -970,8 +1972,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='groove'){
     log("QUENTIN tient le groove... la ligne de basse charge le RIFF (+18).");
-    sonTambour(); animAttaqueMusicien(m,0.9);
-    await dodo(900);
+    sonTambour(); animAttaqueMusicien(m,'groove');
+    await dodo(1000);
     ajouterRiff(18);
     const deg=4+Math.floor(Math.random()*4);
     somnulPV=Math.max(0,somnulPV-deg);
@@ -979,10 +1981,8 @@ async function attaqueMembre(m, actionId){
   }
   else if(actionId==='c2'){
     log("QUENTIN-C2 ! La note la plus basse de l'univers connu.");
-    sonBassFuzz(); animAttaqueMusicien(m,2.5);
-    camShake=0.8;
-    flasher('#3a3aff',0.6);
-    await dodo(2000);
+    sonBassFuzz(); animAttaqueMusicien(m,'c2');
+    await dodo(1750);
     const deg=26+Math.floor(Math.random()*11);
     somnulPV=Math.max(0,somnulPV-deg);
     degatsFlottants(somnul,'-'+deg,'#8888ff');
@@ -1017,7 +2017,27 @@ async function tourSomnul(){
     log("Somnul somnole... il passe son tour.");
     somnulEndormi=false;
     somnulAffaibli=false;
-    yeux.forEach(o=>o.material.emissiveIntensity=1.4);
+    // Petite pose dodo puis réveil
+    if(!somnulAnimLock){
+      somnulAnimLock=true;
+      const t0=performance.now()/1000;
+      animer((now)=>{
+        const e=clamp01((now-t0)/1.6);
+        const snore=Math.sin(e*Math.PI*3);
+        torsoG.rotation.x=0.25+snore*0.04;
+        teteS.rotation.x=0.55;
+        machoires.position.y=-0.35-0.12*Math.max(0,snore);
+        corps.scale.set(1.05+0.04*snore, 1.12+0.05*snore, 0.92);
+        yeux.forEach(o=>{ o.material.emissiveIntensity=0.25; });
+        if(e>=1){
+          resetSomnulPose();
+          yeux.forEach(o=>{ o.material.emissiveIntensity=1.4; });
+          somnulAnimLock=false;
+          return true;
+        }
+        return false;
+      });
+    }
     await dodo(1800);
     nouveauTour();
     return;
@@ -1029,19 +2049,22 @@ async function tourSomnul(){
 
   if(r<0.38){
     log("SOMNUL-GRIFFE LENTE. Inéluctable. Très lente. Mais inéluctable.");
-    animSomnulAttaque('griffe'); sonSomnul('grogne');
-    await dodo(1300);
     const cible=cibles[Math.floor(Math.random()*cibles.length)];
+    animSomnulAttaque('griffe'); sonSomnul('grogne');
+    setTimeout(()=>spawnAttackVFX(somnul, cible.mesh, 'griffe', { fromY:5.5, toY:1.5, dur:0.65 }), 200);
+    await dodo(850);
     const deg=somnulAffaibli ? 15+Math.floor(Math.random()*8) : 36+Math.floor(Math.random()*15);
     cible.pv=Math.max(0,cible.pv-deg);
     degatsFlottants(cible.mesh,'-'+deg,'#ff7a5a');
-    camShake=0.5; flasher('#3aff7a',0.25);
+    camShake=Math.max(camShake,0.45);
     if(cible.pv<=0){ await dodo(500); log(cible.nom+" se dissout dans la torpeur..."); await dodo(1100); }
+    else await dodo(1100);
   }
   else if(r<0.68){
     log("SOMNUL-BÂILLEMENT COSMIQUE. Un bâillement qui contamine l'univers.");
     animSomnulAttaque('baille'); sonSomnul('baille');
-    await dodo(1500);
+    cibles.forEach((c,i)=>setTimeout(()=>spawnAttackVFX(somnul, c.mesh, 'baille', { fromY:8.5, toY:1.6, dur:0.9 }), 550+i*90));
+    await dodo(2300);
     cibles.forEach(c=>{
       const deg=14+Math.floor(Math.random()*7);
       c.pv=Math.max(0,c.pv-deg);
@@ -1066,9 +2089,10 @@ async function tourSomnul(){
   }
   else if(r<0.88){
     log("SOMNUL-SPORES DE MOUSSE. Sa fourrure libère un nuage anesthésiant.");
-    sonSomnul('baille');
-    flasher('#4a8a5a',0.4);
-    await dodo(1300);
+    animSomnulAttaque('spores'); sonSomnul('baille');
+    flasher('#4a8a5a',0.35);
+    cibles.forEach((c,i)=>setTimeout(()=>spawnAttackVFX(somnul, c.mesh, 'spores', { fromY:4.5, toY:1.4, dur:0.85 }), 400+i*100));
+    await dodo(2100);
     cibles.forEach(c=>{
       const deg=11+Math.floor(Math.random()*5);
       c.pv=Math.max(0,c.pv-deg);
@@ -1081,9 +2105,9 @@ async function tourSomnul(){
   }
   else {
     log("SOMNUL-REGARD MILLÉNAIRE. Il vous fixe. Toute hâte semble soudain dérisoire.");
-    yeux.forEach(o=>o.material.emissiveIntensity=3);
-    await dodo(1600);
-    yeux.forEach(o=>o.material.emissiveIntensity=1.4);
+    animSomnulAttaque('regard'); sonSomnul('grogne');
+    cibles.forEach((c,i)=>setTimeout(()=>spawnAttackVFX(somnul, c.mesh, 'regard', { fromY:9.2, toY:1.7, dur:1.0, arc:0 }), 500+i*80));
+    await dodo(2500);
     riff=Math.max(0,Math.floor(riff/2));
     cibles.forEach(c=>{
       const deg=8+Math.floor(Math.random()*5);
@@ -1175,16 +2199,8 @@ async function victoire(){
   phase='fin';
   panneau.style.display='none';
   log("Le drop final résonne... Les paupières de Somnul retombent...");
-  const t0=performance.now()/1000;
   sonSomnul('baille');
-  animer((now)=>{
-    const e=Math.min(1,(now-t0)/6);
-    somnul.position.y=0.5-e*5;
-    teteS.rotation.x=0.1+e*0.7;
-    yeux.forEach(o=>o.material.emissiveIntensity=1.4*(1-e));
-    lumSomnul.intensity=1.8*(1-e*0.7);
-    return e>=1;
-  });
+  animSomnulMort();
   await dodo(6200);
   SlothProgress.completeLevel(1);
   document.getElementById('fin-titre').textContent="ZURRHBHOOR";
@@ -1226,19 +2242,26 @@ function animate(){
   });
 
   if(phase==='intro' && introT>0){
-    introT+=dt;
-    const p=Math.min(1,introT/5);
-    const ease=p*p*(3-2*p);
-    somnul.position.y=-16+ease*16.5;
-    camShake=(1-p)*0.3;
+    introT=-1; // fire once
     sonOK=true;
-    if(p>=1){ phase='attente'; lancerCombat(); }
+    animSomnulApparition(()=>{ phase='attente'; lancerCombat(); });
   }
 
-  if(somnul.position.y>-10 && phase!=='fin'){
-    const souffle=1+Math.sin(t*0.5)*0.02;
-    corps.scale.set(souffle,1.25*souffle,0.9*souffle);
-    somnul.rotation.y=Math.sin(t*0.15)*0.04;
+  updateFX(dt);
+
+  if(!somnulAnimLock && somnulIntroDone && phase!=='fin' && phase!=='intro'){
+    const souffle=1+Math.sin(t*0.45)*0.018;
+    corps.scale.set(1.05*souffle, 1.12*souffle, 0.92*souffle);
+    ventreS.scale.set(1, 1.1*souffle, 0.52);
+    torsoG.position.y=Math.sin(t*0.45)*0.06;
+    couG.rotation.x=Math.sin(t*0.35)*0.03;
+    teteS.rotation.x=0.08+Math.sin(t*0.35)*0.04;
+    teteS.rotation.z=Math.sin(t*0.22)*0.03;
+    brasSG.shoulder.rotation.x=-0.25+Math.sin(t*0.4)*0.06;
+    brasSD.shoulder.rotation.x=-0.25+Math.sin(t*0.4+0.8)*0.06;
+    brasSG.elbow.rotation.x=-0.55+Math.sin(t*0.4+0.3)*0.08;
+    brasSD.elbow.rotation.x=-0.55+Math.sin(t*0.4+1.1)*0.08;
+    somnul.rotation.y=Math.sin(t*0.12)*0.045;
   }
 
   MEMBRES.forEach((m,i)=>{
