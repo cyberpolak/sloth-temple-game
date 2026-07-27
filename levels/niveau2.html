@@ -91,7 +91,9 @@
     display:none; flex-direction:column; align-items:center; justify-content:center;
     padding:24px; box-sizing:border-box; text-align:center; }
   #tutoriel h2 { color:#bfffc8; font-size:clamp(14px,3.5vw,20px); letter-spacing:6px;
-    margin:0 0 24px; text-shadow:0 0 16px rgba(120,255,140,0.5); }
+    margin:0 0 14px; text-shadow:0 0 16px rgba(120,255,140,0.5); }
+  #tutoriel-lore { color:#8ab890; font-size:clamp(11px,2.6vw,13px); letter-spacing:1px;
+    line-height:1.7; max-width:360px; margin:0 0 22px; }
   #tutoriel-grid { display:grid; grid-template-columns:auto 1fr; gap:10px 20px;
     text-align:left; margin-bottom:28px; max-width:340px; width:100%; }
   .tut-key { background:rgba(10,24,14,0.9); border:1px solid #3a6a48; color:#bfffc8;
@@ -160,10 +162,11 @@
   <button id="journal-ok" type="button">OK</button>
 </div>
 <div id="tutoriel">
-  <h2>CONTRÔLES</h2>
+  <h2>LE RÊVE DE SOMNUL</h2>
+  <p id="tutoriel-lore">Somnul marche dans son sommeil. Chaque pas lui appartient : seule la torpeur ouvre les passages étroits.</p>
   <div id="tutoriel-grid">
     <div class="tut-key">← →</div><div class="tut-desc">Avancer / reculer librement</div>
-    <div class="tut-key">ESPACE</div><div class="tut-desc">Sauter (triple saut en l'air)</div>
+    <div class="tut-key">ESPACE / ↑</div><div class="tut-desc">Sauter (triple saut en l'air)</div>
     <div class="tut-key">X / CRR</div><div class="tut-desc">Cri doom · devant Somnul</div>
   </div>
   <button id="tutoriel-ok" type="button">COMMENCER LE RITE</button>
@@ -173,7 +176,7 @@
 <div id="gamepad">
   <div class="gp-btn" id="dpad-left" data-key="left">◀</div>
   <div class="gp-btn" id="dpad-right" data-key="right">▶</div>
-  <div class="gp-btn" id="btn-jump" data-key="jump">✕</div>
+  <div class="gp-btn" id="btn-jump" data-key="jump">↑</div>
   <div class="gp-btn" id="btn-attack" data-key="attack">CRR</div>
 </div>
 
@@ -550,13 +553,8 @@ function buildLevel() {
 }
 
 
-const NARRATIONS = {
-  intro: "Somnul marche dans son propre sommeil. Ici, chaque pas lui appartient. Seule la torpeur ouvre les passages étroits.",
-  bridge: "Les dalles se souviennent d'avoir été pierre. Trop de hâte, et le rêve les oublie.",
-  cerberus: "CERBERUS : trois gueules de brume au seuil. Deux cris doom par tête. Le rite exige la patience.",
-  cerberus_fall: "Les trois gueules s'effondrent en un seul silence. La brume redevient prière. Le temple de pierre ancienne ouvre son œil, ZURRHBHOOR, et Somnul, dieu endormi, se souvient qu'il rêve encore.",
-  aftermath: "Le seuil est franchi. Devant toi, la pyramide veille. Marche sans précipitation : le temple n'ouvre qu'à ceux qui savent s'arrêter.",
-};
+
+
 
 function setSafeCheckpoint(id) {
   // Spawns fixes : hors ennemis, hors dalles instables, sur sol solide
@@ -584,39 +582,12 @@ async function fireTrigger(id) {
   if (id === 'cp_bridge' || id === 'cp_boss') {
     markTriggerFired(id);
     setSafeCheckpoint(id);
-    if (!tipsSeen.has(id)) {
-      tipsSeen.add(id);
-      tipBubble('RITE MARQUÉ', id === 'cp_bridge'
-        ? 'Le pont est franchi. La mort te ramènera ici.'
-        : 'Cerbère s\'incline. Le temple te rappelle ici.', 3200);
-    }
     return;
   }
 
-  if (!NARRATIONS[id]) return;
-
+  // Narrations mid-niveau retirées : on marque juste le trigger
   markTriggerFired(id);
-
-  if (narrSeen.has(id)) {
-    phase = 'play';
-    if (id === 'cerberus' && !tipsSeen.has('cerberus_fight')) {
-      tipsSeen.add('cerberus_fight');
-      tipBubble('SEUIL DE CERBERUS', 'Deux cris doom par tête. Esquive la brume, frappe quand les gueules s\'ouvrent.', 4200);
-    }
-    return;
-  }
-
-  savePlayerPos();
-  phase = 'narration';
   narrSeen.add(id);
-  await log(NARRATIONS[id]);
-  restorePlayerPos();
-  invulnTimer = 1.5;
-  phase = 'play';
-  if (id === 'cerberus') {
-    tipsSeen.add('cerberus_fight');
-    tipBubble('SEUIL DE CERBERUS', 'Deux cris doom par tête. Esquive la brume, frappe quand les gueules s\'ouvrent.', 4200);
-  }
 }
 
 function startTempleEntry() {
@@ -769,7 +740,9 @@ function showTutorial() {
 async function startIntro() {
   playLevelMusic();
   await showTutorial();
-  await fireTrigger('intro');
+  narrSeen.add('intro');
+  markTriggerFired('intro');
+  phase = 'play';
 }
 
 function playLevelMusic() {
@@ -785,7 +758,7 @@ async function victoire() {
   await annoncer("LE TEMPLE T'ACCUEILLE", 2200);
   document.getElementById('fin-titre').textContent = 'ZURRHBHOOR';
   document.getElementById('fin-texte').innerHTML =
-    'Somnul referme l\'oeil du rêve.<br>Le lotus devient seuil.<br>Le temple veille, 199X.<br><br><span style="color:#5a7a60">Rite suivant : bientôt</span>';
+    'Les trois gueules se sont tues.<br>Somnul referme l\'oeil du rêve.<br>Le temple de pierre ancienne ouvre son seuil.<br><br><span style="color:#5a7a60">Rite suivant : bientôt</span>';
   document.getElementById('ecran-fin').style.display = 'flex';
   const finOk = document.getElementById('fin-ok');
   await new Promise(res => {
@@ -832,7 +805,6 @@ function resetLevel(fromDeath = false) {
   if (temple) temple.glow = 0;
   clearTipBubbles();
   if (fromDeath && deathReason) {
-    tipBubble('RITE BRISÉ', deathReason, 2800);
     deathReason = '';
   }
   if (!fromDeath) {
@@ -1064,21 +1036,9 @@ function currentSpeed() {
 function collectItem(it) {
   it.taken = true;
   const defs = {
-    brume: {
-      mult: 0.42, time: 9, label: 'BRUME LENTE',
-      title: 'ORBE DE BRUME',
-      tip: 'Torpeur 9 s : passages ouverts, dalles plus stables, vent adouci.',
-    },
-    kalimba: {
-      mult: 0.36, time: 7, label: 'ECLAT DE KALIMBA',
-      title: 'ÉCLAT DE KALIMBA',
-      tip: 'Brume dorée 7 s. Marche apaisée : les murs de son s\'écartent.',
-    },
-    sieste: {
-      mult: 0.3, time: 5.5, label: 'FEUILLE DE SIESTE',
-      title: 'FEUILLE DE SIESTE',
-      tip: 'Torpeur profonde 5,5 s. Idéale pour les tours et le vent du seuil.',
-    },
+    brume: { mult: 0.42, time: 9, label: 'BRUME LENTE' },
+    kalimba: { mult: 0.36, time: 7, label: 'ECLAT DE KALIMBA' },
+    sieste: { mult: 0.3, time: 5.5, label: 'FEUILLE DE SIESTE' },
   };
   const d = defs[it.kind];
   slowBuff = { mult: d.mult, timer: d.time, timeMax: d.time, label: d.label, kind: it.kind };
@@ -1086,7 +1046,6 @@ function collectItem(it) {
   const colors = { brume: COL.itemBrume, kalimba: COL.itemKalimba, sieste: COL.itemSieste };
   flasher(colors[it.kind] || '#6a9aaa', 0.25);
   spawnParticles(it.x + 8, it.y + 8, colors[it.kind] || COL.itemBrume, 12);
-  tipBubble(d.title, d.tip, 4200);
 }
 
 function spawnParticles(x, y, color, n) {
@@ -1216,7 +1175,6 @@ function killEnemiesInRange() {
       if (cerberusEnraged(e) && !e.enrageAnnounced) {
         e.enrageAnnounced = true;
         annoncer('BRUME ENRAGÉE', 1400);
-        tipBubble('CERBERUS', 'Les gueules s\'ouvrent plus vite. Esquive la brume.', 3600);
       }
       if (!cerberusAnyHeadAlive(e)) {
         e.alive = false;
@@ -1267,14 +1225,11 @@ function startCerberusCine(e) {
 
 async function finishCerberusCine() {
   if (!cerberusCine || cerberusCine.stage === 'done') return;
-  cerberusCine.stage = 'narr';
-  if (!narrSeen.has('cerberus_fall')) {
-    narrSeen.add('cerberus_fall');
-    await log(NARRATIONS.cerberus_fall);
-  }
+  cerberusCine.stage = 'done';
+  narrSeen.add('cerberus_fall');
   cerberusCine = null;
   phase = 'play';
-  tipBubble('SEUIL OUVERT', 'La pyramide appelle. Avance quand tu es prêt.', 3600);
+  updateGamepadVisibility();
 }
 
 function updateCerberusCine(dt) {
@@ -1447,10 +1402,7 @@ function updateCrumble(dt) {
     if (!pl.crumbling && playerOnCrumble(pl)) {
       pl.crumbling = true;
       pl.crumbleTimer = CRUMBLE_DELAY;
-      if (!tipsSeen.has('crumble')) {
-        tipsSeen.add('crumble');
-        tipBubble('DALLES INSTABLES', 'Ne t\'attarde pas : le rêve oublie ce qui reste trop longtemps.', 3400);
-      }
+
     }
     if (!pl.crumbling) continue;
 
@@ -1692,10 +1644,7 @@ function resolveCollisions(dt) {
 
   for (const w of windZones) {
     if (!aabb(p.x, p.y, PW, PH, w.x, w.y, w.w, w.h)) continue;
-    if (!tipsSeen.has('wind')) {
-      tipsSeen.add('wind');
-      tipBubble('VENT DE RÉVEIL', 'Traverse en torpeur. Trop vite, le vent te jette hors du rêve.', 3800);
-    }
+
     if (inTorpeur()) {
       p.vx += w.force * 0.12 * fs;
       p.vy -= w.force * 0.08 * fs;
@@ -1710,23 +1659,6 @@ function resolveCollisions(dt) {
     return;
   }
 
-  if (!tipsSeen.has('brake') && p.x > 1180 && p.x < 1320) {
-    tipsSeen.add('brake');
-    tipBubble(
-      'PASSAGES DU RÊVE',
-      'Marche doucement, ou prends une relique. Trop vite, les cabs te refusent.',
-      4000,
-    );
-  }
-
-  if (stoodPlat && stoodPlat.type === 'gate' && inTorpeur() && !tipsSeen.has('gate')) {
-    tipsSeen.add('gate');
-    tipBubble(
-      'PASSAGE ÉTROIT',
-      'Les cabs s\'ouvrent à la torpeur. Relâche la course, ou laisse une relique t\'apaiser.',
-      3800,
-    );
-  }
 
   for (const it of items) {
     if (!it.taken && aabb(p.x, p.y, PW, PH, it.x, it.y, 16, 16)) collectItem(it);
